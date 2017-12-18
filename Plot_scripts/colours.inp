@@ -1,0 +1,69 @@
+#for colour choices see http://colorbrewer2.org/
+#for colour names see http://chir.ag/projects/name-that-color/
+
+function string colour_5(scalar c[1:5] "choose a colour from 1 to 5")
+    #provides a string with the rgb colour name for gnuplot
+    #using tableau colours, see https://www.tableau.com/about/blog/2016/7/colors-upgrade-tableau-10-56782
+    #there is also a 20 option.
+    if c==1
+        return "'0x1b9e77'" #green (Mointain Meadow)
+    elif c==2
+        return "'0xd95f02'" #orange (Bamboo)
+    elif c==3
+        return "'0x7570b3'" #purple (Deluge)
+    elif c==4
+        return "'0xe7298a'" #pink (Cerise)
+    elif c==5
+        return "'0x66a61e'" #green2 (Vida Loca)
+    endif
+end function
+
+function string colour_special(scalar c[1:3] "choose a colour from 1 to 2", scalar s[1:2] "choose a spec from 1 to 2")
+    #provides a string with the rgb colour name for gnuplot
+    #using slightly differentiated colours (3 * 2)
+    if c==1
+        if s==1
+            return "'0x018571'" #green (Vida Loca)
+        elif s==2
+            return "'0x80cdc1'" #green2 (Monte Carlo)
+        endif
+    elif c==2
+        if s==1
+            return "'0xa6611a'" #brown (Reno Sand)
+        elif s==2
+            return "'0xdfc27d'" #brown2 (Harvest Gold)
+        endif
+    elif c==3
+        if s==1
+            return "'0xfa9fb5'" #pink1 (Sweet Pink)
+        elif s==2
+            return "'0xfde0dd'" #pink2 (Cinderella)
+        endif
+    endif
+end function
+                                    
+function string colour_10(scalar c[1:5] "choose a colour from 1 to 10")
+    #provides a string with the rgb colour name for gnuplot
+    #using nice colours (first three also colourblind safe)
+    if c==1
+        return "'0x4e79a7'" #blue (Wedgewood)
+    elif c==2
+        return "'0xf28e2b'" #orange (Carrot)
+    elif c==3
+        return "'0xe15759'" #red (Mandy)
+    elif c==4
+        return "'0x76b7b2'" #light blue (Neptune)
+    elif c==5
+        return "'0x59a14f'" #green (Fruit Salad)
+    elif c==6
+        return "'0xedc948'" #yellow (Ronchi)
+    elif c==7
+        return "'0xb07aa1'" #purple (Bouquet)
+    elif c==8
+        return "'0xff9da7'" #Salmon (pink)
+    elif c==9
+        return "'0x9c755f'" #brown (Toast)
+    elif c==10
+        return "'0xbab0ac'" #Tide
+    endif
+end function 

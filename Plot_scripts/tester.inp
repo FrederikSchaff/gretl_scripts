@@ -1,0 +1,19 @@
+#/*
+# Example
+clear 
+nulldata 3000
+setobs 1 1 --cross-section
+include cross_sect_plots.inp
+series aa = normal(1,.5)
+series bb = uniform(0,2)
+series cc = 3^normal(0,2)
+list ls = aa bb cc
+#test_plot(ls)
+#jitter(ls)
+list ls2 = aa bb
+#jitter(ls2)
+jitter(ls2,3)
+smpl 300 --random
+jitter(ls2,3)
+#jitter(ls2,3)
+#*/

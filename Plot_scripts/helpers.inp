@@ -1,0 +1,60 @@
+#Plot helper functions
+function matrices series_to_matrices(list ls "input")
+    matrices M = null
+    #loop foreach l ls
+    #    matrix temp = l
+    #colnames(temp,varname(l))
+    loop s=1..nelem(ls)
+        matrix temp = ls[s]
+        colnames(temp,varname(ls[s]))
+        M += temp
+    endloop
+    return M
+end function
+
+function string data_to_temp(matrices Ms, 
+	matrix ObsK[null] "Key for observation")
+    # write data block, for each matrix a single block.
+    # use the matrix column-heads as label
+    tmpfile = sprintf("%s/tmp_data.dat", $dotdir)
+    #print tmpfile
+    #outfile tmpfile --write 
+    #outfile --close
+    #gnuplot --input=@tmpfile
+    scalar n = nelem(Ms)
+    if exists(ObsK)==0
+        matrix ObsK = zeros(rows(Ms[1]),1)
+		loop i=1..rows(Ms[1])
+			ObsK[i,1]=i
+		endloop
+		colnames(ObsK, "x") 
+    endif
+    outfile @tmpfile --write --quiet
+    loop f=1..n -q ##loop matrices 
+        scalar cMf = cols(Ms[f])
+        scalar rMf = rows(Ms[f])
+        loop r=0..rMf  -q #loop rows, 0 for columnhead
+            loop c=0..cMf  -q #loop columns
+                if r==0 #print column header
+                    if c==0
+                        printf "%s ", colname(ObsK, 1)
+                    else                        
+                        printf "%s ", colname(Ms[f], c)
+                    endif                    
+                else
+                    if c==0
+                        printf "%d ",ObsK[r,1]
+                    else                        
+                        printf "%g ",Ms[f][r,c]
+                    endif                    
+                endif                            
+            endloop
+            printf "\n" #new row
+        endloop
+        printf "\n\n" #two free lines -- new index block
+    endloop
+    outfile --close 
+    return tmpfile   
+end function
+
+
