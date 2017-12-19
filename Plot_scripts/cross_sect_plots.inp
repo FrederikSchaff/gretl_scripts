@@ -58,12 +58,22 @@ function void jitter (list ls,
 	scalar ps[0::0] "Pointsize")
     #here: produce a simple jitter plot.
     #http://gnuplot.sourceforge.net/demo/jitter.html
-    if exists(obskey)==0
+	bundle b_ls = series_to_bundle(ls)
+	string temp_data = data_to_temp(b_ls.data,b_ls.key) #create temporary data file
+	/*    
+	if exists(obskey)==0
         series obskey = obs
     endif
 	matrix ObsK = {obskey}
 	colnames(ObsK,varname(obskey))
     matrices M = series_to_matrices(ls) #copy data to matrices
+	# the helper data_to_temp needs matrices form. If nelem(of matrices) is 1 then it is assumed the same x key for all data. 
+	matrices temp = null
+	temp += ObsK
+    string temp_data = data_to_temp(M,temp) #create temporary data file
+
+	*/
+	
 	scalar n_ser = nelem(ls) #number of series
 	scalar n_obs = $nobs #number of observations in current sample
 	print n_obs
@@ -80,11 +90,7 @@ function void jitter (list ls,
 	if ps==0
 		ps=scale_fact*.5
 	endif
-
-
-
-
-    string temp_data = data_to_temp(M,ObsK) #create temporary data file
+	
 	string jitter_opt = ""	
 	if j_t==2
 		sprintf jitter_opt "set jitter square" #there is additional vertical wrapping! careful!
@@ -98,7 +104,7 @@ function void jitter (list ls,
 		if i>1
 			sprintf xtics_ "%s,",xtics_
 		endif
-		sprintf xtics_ "%s'%s' %d",xtics_,colname(M[i],1),i	
+		sprintf xtics_ "%s'%s' %d",xtics_,colname(b_ls.key[1],1),i	
 	endloop
 	sprintf xtics_ "%s)",xtics_	
 
@@ -164,10 +170,8 @@ function void test_plot(list ls "list of series to be plotted",
     if exists(obskey)==0
         series obskey = obs
     endif
-	matrix ObsK = {obskey}
-	colnames(ObsK,varname(obskey))
-    matrices M = series_to_matrices(ls) #copy data to matrices
-    string temp_data = data_to_temp(M,ObsK) #create temporary data file
+	bundle b_ls = series_to_bundle(ls,obskey)
+	string temp_data = data_to_temp(b_ls.data,b_ls.key) #create temporary data file
 
 
     #start with plotting

@@ -1,4 +1,7 @@
 #Plot helper functions
+
+
+
 function matrices series_to_matrices(list ls "input")
     matrices M = null
     #loop foreach l ls
@@ -12,8 +15,50 @@ function matrices series_to_matrices(list ls "input")
     return M
 end function
 
+function bundle series_to_bundle(list ls[null], series obskey[null], matrices ms[null])
+    #transform series in bundle of to matrices, the key and the data
+    matrices ms_dat = null
+    matrices ms_obs = null
+
+    if ls!=null
+		print "CheckA"
+        loop i=1..nelem(ls)
+            matrix m_dat = {ls[i]}
+            colnames(m_dat,varname(ls[i]))    
+            ms_dat += m_dat
+        endloop	
+
+        if exists(obskey)==0
+            series obskey = obs
+        endif
+        matrix m_obs = {obskey}
+        colnames(m_obs,varname(obskey))
+        ms_obs += m_obs #wee need the matrices format
+    endif
+
+/* #currently, one cannot check if matrices evaluate to null
+    if ms!=null
+		print "CheckB"
+        loop i=1..nelem(ms)
+            matrix m_dat = ms[i,2]
+            colnames(m_dat,colname(ms[i,2]))    
+            ms_dat += m_dat
+
+            matrix m_obs = ms2[i,1]
+            colnames(m_obs,colname(ms[i,1]))
+            ms_obs += m_obs #wee need2 the matrices format
+        endloop	
+    endif
+*/    
+
+    bundle b_dat = null
+    b_dat.data = ms_dat
+    b_dat.key = ms_obs
+    return b_dat
+end function
+
 function string data_to_temp(matrices Ms, 
-	matrix ObsK[null] "Key for observation")
+      matrices ObsK[null] "x-Keys")
     # write data block, for each matrix a single block.
     # use the matrix column-heads as label
     tmpfile = sprintf("%s/tmp_data.dat", $dotdir)
@@ -22,13 +67,22 @@ function string data_to_temp(matrices Ms,
     #outfile --close
     #gnuplot --input=@tmpfile
     scalar n = nelem(Ms)
+    scalar singleK = 0
     if exists(ObsK)==0
-        matrix ObsK = zeros(rows(Ms[1]),1)
-		loop i=1..rows(Ms[1])
-			ObsK[i,1]=i
-		endloop
-		colnames(ObsK, "x") 
+        singleK = 1
+        matrices ObsK = null
+        matrix temp = zeros(rows(Ms[1]),1)
+        loop i=1..rows(Ms[1])
+            temp[i,1]=i
+        endloop
+        colnames(temp, "x")
+        ObsK += temp 
+    elif nelem(ObsK)==1
+        singleK = 1 #universal key, but provided from outside
+    elif nelem(ObsK)<nelem(Ms) #number of keys does not match number of datafiles
+        return "ERROR" #better way?
     endif
+    #Note: It is not tested if the data input has the same length, which should be the case if there is a single key.
     outfile @tmpfile --write --quiet
     loop f=1..n -q ##loop matrices 
         scalar cMf = cols(Ms[f])
@@ -37,13 +91,21 @@ function string data_to_temp(matrices Ms,
             loop c=0..cMf  -q #loop columns
                 if r==0 #print column header
                     if c==0
-                        printf "%s ", colname(ObsK, 1)
+                        if singleK# == 1
+                            printf "%s ", colname(ObsK[1], 1)
+                        else
+                            printf "%s ", colname(ObsK[f], 1)
+                        endif
                     else                        
                         printf "%s ", colname(Ms[f], c)
                     endif                    
                 else
                     if c==0
-                        printf "%d ",ObsK[r,1]
+                        if singleK# == 1
+                            printf "%d ",ObsK[1][r,1]
+                        else
+                            printf "%d ",ObsK[f][r,1]
+                        endif
                     else                        
                         printf "%g ",Ms[f][r,c]
                     endif                    

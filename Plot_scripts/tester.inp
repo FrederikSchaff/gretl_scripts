@@ -15,5 +15,6 @@ list ls2 = aa bb
 jitter(ls2,3)
 smpl 300 --random
 jitter(ls2,3)
+test_plot(ls2)
 #jitter(ls2,3)
 #*/
