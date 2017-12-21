@@ -1,0 +1,104 @@
+#some plot function, using helpers and colours
+#Thanks to artur tarassow for help!
+#these are (mainly) ment for cross-sectional data!
+
+#first: time-series plot with mser-5 on right axis
+
+function void tsplot_mser (series ts "time-series data",
+      scalar plot_MSER5[0:1:0] "plot MSER-5 on second y axis?",
+      scalar plot_freq[0:1:0] "plot frequency distribution?", scalar datafilemode[0:1:0] "datafilemode 1: do not store data in plot file, but on disk")
+
+    #prepare for handling over to series_to_bundle()
+    list ls = ts
+    matrices ms = null
+
+    #first, calculate some stats
+    scalar med = median(ts)
+    #scalar min_ = min(ts)
+    #scalar max_ = max(ts)
+    scalar mean_=mean(ts)
+    scalar sd_ = sd(ts)
+    scalar q1 = quantile(ts,0.25)
+    scalar q3 = quantile(ts,0.75)	
+	
+    #calculate the MSER-5, if warranted. See e.g. #doi.org/10.1177/003754979706900601 for infos on MSER
+    scalar bs = 2 #left and bottom
+    if plot_MSER5==1
+        bs = 10 #border also right
+        ms=MSER5(ts)
+    endif
+
+    #wrap everything up in a bundle (better) alternative: single temp files for each plot/data
+    bundle b_ls = series_to_bundle(ls, null,ms)
+    scalar buffer_data = 1 
+    if (datafilemode == 1)
+        buffer_data = 0
+    endif	 
+    string temp_data = data_to_temp(b_ls.data,b_ls.key,buffer_data) #create temporary data file, either on disk or the string itself
+	#print temp_data
+	
+    #start with plotting
+    tmpfile = sprintf("%s/tmp_out.gp", $dotdir)
+    outfile @tmpfile --write --quiet #open temp outfile
+
+    if (datafilemode==0)
+		printf "$DATA << EOD\n"
+		string line
+        loop while getline(temp_data, line) --quiet
+            printf "%s\n", line
+        endloop
+        printf "EOD\n"
+		temp_data="$DATA\n"		
+    endif
+
+    printf "set encoding utf8\n" 
+    printf "set key autotitle columnheader horizontal under center \n"
+    printf "set border %d \n",bs #only left side box-line
+    printf "set xtics nomirror\n"	
+    printf "set ytics nomirror\n"
+    printf "set xlabel 'time'\n"
+    printf "set key center top\n"
+    if plot_MSER5==1	
+        printf "set ylabel 'data'\n"
+        printf "set y2tics auto nomirror\n"
+        printf "set y2label 'MSER-5'\n"
+    endif
+
+    #control for the number of data points to keep format nice!		
+    if 1==rows(b_ls.key[1]) <= 120
+        #start plotting block back: IQR
+        printf " plot '@tmpfile'  index %d using 1:(%f):(%f) w filledcurves below lc rgb %s title 'IQR',\\\n",0,q1,q3,colours_gray_shade(1) 
+        printf " '' 		      index %d using 1:(%f) w lines lw 2 lc rgb %s title 'sd_about_avg',\\\n",0,mean_-sd_,colours_gray_shade(3)
+        printf " '' 		      index %d using 1:(%f) w lines lw 2 lc rgb %s notitle,\\\n",0,mean_+sd_,colours_gray_shade(2,3)
+        printf " '' 			  index %d using 1:(%f):2 w filledcurves above lc rgb %s title 'below median',\\\n",0,med,colour_2_shade(1)
+        printf " '' 			  index %d using 1:(%f):2 w filledcurves below lc rgb %s title 'above median',\\\n",0,med,colour_2_shade(2)
+        #        printf " '' 	          index %d using 1:(%f) w lines lc rgb %s title 'median',\\\n",0,med,colour_5(3) 
+        printf " '' 	          index %d using 1:(%f) w lines dt 3 lw 2 lc rgb %s title 'mean',\\\n",0,mean_,colour_5(3) 
+        printf " '' 	          index %d using 1:2 with lp pt 1 lw 2 lc rgb %s notitle",0,colour_5(1) 
+    else #reduced main plot
+        printf " plot '@tmpfile'  index %d using 1:(%f):(%f) w filledcurves below lc rgb %s title 'IQR',\\\n",0,q1,q3,colours_gray_shade(1) 
+        printf " '' 		      index %d using 1:(%f) w lines lw 2 lc rgb %s title 'sd_about_avg',\\\n",0,mean_-sd_,colours_gray_shade(3)
+        printf " '' 		      index %d using 1:(%f) w lines lw 2 lc rgb %s notitle,\\\n",0,mean_+sd_,colours_gray_shade(2,3)
+        #    printf " '' 			  index %d using 1:(%f):2 w filledcurves above lc rgb %s title 'below median',\\\n",0,med,colour_2_shade(1)
+        #    printf " '' 			  index %d using 1:(%f):2 w filledcurves below lc rgb %s title 'above median',\\\n",0,med,colour_2_shade(2) 
+        printf " '' 	          index %d using 1:(%f) w lines lc rgb %s title 'median',\\\n",0,med,colour_5(3) 
+        printf " '' 	          index %d using 1:(%f) w lines dt 3 lc rgb %s title 'mean',\\\n",0,mean_,colour_5(3) 
+        printf " '' 	          index %d using 1:($2>%f)?($2):(1/0) w points ps .5 pt 3 lc rgb %s notitle,\\\n",0,med,colour_5(1) 
+        printf " '' 	          index %d using 1:($2<%f)?($2):(1/0) w points ps .5 pt 3 lc rgb %s notitle,\\\n",0,med,colour_5(2)
+        printf " '' 	          index %d using 1:($2==%f)?($2):(1/0) w points ps .5 pt 3 lc rgb %s notitle",0,med,colour_5(3) 
+
+    endif
+
+    if plot_MSER5 == 1
+        printf ",\\\n"	
+        printf " ''               index %d using 1:2 with steps lc rgb %s,\\\n",1,colour_5(4) 	
+        printf " ''               index %d using 1:2 axes x1y2 with steps lc rgb %s\n",2,colour_5(5) 
+    else
+        printf "\n"
+    endif
+
+		    
+
+    outfile --close 
+    gnuplot --input=@tmpfile --output=display
+end function

@@ -1,6 +1,57 @@
 #Plot helper functions
 
+function matrices MSER5 (series ts)
+    matrices ms=null
+    matrix temp = {ts}
+    scalar batch=0
+    scalar count=0		
+    scalar len = rows(temp)
+    matrix MSER5 = zeros(int((len+4)/5),2) #for 5 batches. the first point of the batch refers to the i*5 in the original time series. The x-key is the time, the y-key the mser-5.
+    matrix batch5 = MSER5		
+    strings MSER5names = array(2)
+    strings batch5names = array(2)
+    MSER5names[1] = "x"
+    MSER5names[2] = "MSER5"
+    batch5names[1] = "x"
+    batch5names[2] = "batch_mean_5"
+    colnames(MSER5,MSER5names)
+    colnames(batch5,batch5names)
+    #Create batch and mser 5 data.
+    scalar n_MSER = rows(batch5)
+    scalar indx = n_MSER
+    scalar running_agg = 0
+    #	scalar batch_idx = 1 #batch number from back
+    loop i=0..len-1			
+        batch += temp[len-i]
+        count += 1
+        if count==5 || i==len-1 #at end
+            batch5[indx,1] = len-i + int(count/2)
+            MSER5[indx,1]=batch5[indx,1]
+            batch5[indx,2] = batch/count #batch mean.
 
+            #calc MSER5			
+            running_agg+=batch5[indx,2]
+            scalar running_avg=batch5[indx,2]/(n_MSER-indx+1)			
+            loop b=indx..n_MSER --quiet #for each batch in the truncated series
+                MSER5[indx,2]+=( batch5[b,2]-running_avg )*( batch5[b,2]-running_avg )
+            endloop
+            MSER5[indx,2] /= (n_MSER-indx+1)*(n_MSER-indx+1)
+            #reset
+            batch = 0
+            count = 0
+
+            #advance
+            indx -= 1 
+            #			batch_idx += 1
+
+			
+        endif
+    endloop
+    MSER5[n_MSER,2]=NA #reset last value, which is an artifact "0"
+    ms+=batch5
+    ms+=MSER5
+    return ms
+end function
 
 function matrices series_to_matrices(list ls "input")
     matrices M = null
@@ -16,40 +67,40 @@ function matrices series_to_matrices(list ls "input")
 end function
 
 function bundle series_to_bundle(list ls[null], series obskey[null], matrices ms[null])
-    #transform series in bundle of to matrices, the key and the data
+    #transform series in bundle of two matrices, the key and the data
     matrices ms_dat = null
     matrices ms_obs = null
 
-    if ls!=null
-		print "CheckA"
-        loop i=1..nelem(ls)
-            matrix m_dat = {ls[i]}
-            colnames(m_dat,varname(ls[i]))    
-            ms_dat += m_dat
-        endloop	
+    if exists(ls)
+        if nelem(ls)>0
+            loop i=1..nelem(ls) --quiet
+                matrix m_dat = {ls[i]}
+                colnames(m_dat,varname(ls[i]))    
+                ms_dat += m_dat
+            endloop	
 
-        if exists(obskey)==0
-            series obskey = obs
+            if exists(obskey)==0
+                series obskey = obs
+            endif
+            matrix m_obs = {obskey}
+            colnames(m_obs,varname(obskey))
+            ms_obs += m_obs #wee need the matrices format
         endif
-        matrix m_obs = {obskey}
-        colnames(m_obs,varname(obskey))
-        ms_obs += m_obs #wee need the matrices format
     endif
 
-/* #currently, one cannot check if matrices evaluate to null
-    if ms!=null
-		print "CheckB"
-        loop i=1..nelem(ms)
-            matrix m_dat = ms[i,2]
-            colnames(m_dat,colname(ms[i,2]))    
+
+    if exists(ms)
+        loop i=1..nelem(ms) --quiet
+            matrix m_dat = ms[i][,2]
+            colnames(m_dat,colname(ms[i],2))    
             ms_dat += m_dat
 
-            matrix m_obs = ms2[i,1]
-            colnames(m_obs,colname(ms[i,1]))
+            matrix m_obs = ms[i][,1]
+            colnames(m_obs,colname(ms[i],1))
             ms_obs += m_obs #wee need2 the matrices format
         endloop	
     endif
-*/    
+
 
     bundle b_dat = null
     b_dat.data = ms_dat
@@ -58,18 +109,24 @@ function bundle series_to_bundle(list ls[null], series obskey[null], matrices ms
 end function
 
 function string data_to_temp(matrices Ms, 
-      matrices ObsK[null] "x-Keys")
+      matrices ObsK[null] "x-Keys", scalar stringstream[0:1:1] "If 1, everything is written to a string and returned, instead")
     # write data block, for each matrix a single block.
     # use the matrix column-heads as label
-    tmpfile = sprintf("%s/tmp_data.dat", $dotdir)
+
     #print tmpfile
     #outfile tmpfile --write 
     #outfile --close
     #gnuplot --input=@tmpfile
     scalar n = nelem(Ms)
     scalar singleK = 0
-    if exists(ObsK)==0
-        singleK = 1
+    if exists(ObsK)
+        if nelem(ObsK)==1
+            singleK = 1 #universal key, but provided from outside
+        elif nelem(ObsK)<nelem(Ms) #number of keys does not match number of datafiles
+            return "ERROR" #better way?	
+        endif
+    else
+        singleK = 1 #DANGEROUS! PRESUMES SINGLE KEY!
         matrices ObsK = null
         matrix temp = zeros(rows(Ms[1]),1)
         loop i=1..rows(Ms[1])
@@ -77,13 +134,17 @@ function string data_to_temp(matrices Ms,
         endloop
         colnames(temp, "x")
         ObsK += temp 
-    elif nelem(ObsK)==1
-        singleK = 1 #universal key, but provided from outside
-    elif nelem(ObsK)<nelem(Ms) #number of keys does not match number of datafiles
-        return "ERROR" #better way?
     endif
     #Note: It is not tested if the data input has the same length, which should be the case if there is a single key.
-    outfile @tmpfile --write --quiet
+	
+    #either write data to a file or buffer it and return the string.
+    if (stringstream == 0)
+        string tmpfile = sprintf("%s/tmp_data.dat", $dotdir)
+        outfile @tmpfile --write --quiet
+    else
+        outfile mybuff --buffer --quiet
+    endif
+	set warnings off
     loop f=1..n -q ##loop matrices 
         scalar cMf = cols(Ms[f])
         scalar rMf = rows(Ms[f])
@@ -115,8 +176,13 @@ function string data_to_temp(matrices Ms,
         endloop
         printf "\n\n" #two free lines -- new index block
     endloop
-    outfile --close 
-    return tmpfile   
+    outfile --close
+	set warnings on
+    if (stringstream==0) 
+        return tmpfile   
+    else
+        return mybuff
+    endif
 end function
 
 

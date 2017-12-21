@@ -3,7 +3,7 @@
 clear 
 nulldata 3000
 setobs 1 1 --cross-section
-include cross_sect_plots.inp
+include main_plots.inp --force
 series aa = normal(1,.5)
 series bb = uniform(0,2)
 series cc = 3^normal(0,2)
@@ -13,8 +13,18 @@ list ls = aa bb cc
 list ls2 = aa bb
 #jitter(ls2)
 jitter(ls2,3)
-smpl 300 --random
+smpl 120 --random
 jitter(ls2,3)
 test_plot(ls2)
 #jitter(ls2,3)
+
+tsplot_mser(bb,1)
+tsplot_mser(bb)
+
+smpl --full
+tsplot_mser(bb,1)
+tsplot_mser(bb)
+
+
+
 #*/

@@ -59,7 +59,7 @@ function void jitter (list ls,
     #here: produce a simple jitter plot.
     #http://gnuplot.sourceforge.net/demo/jitter.html
 	bundle b_ls = series_to_bundle(ls)
-	string temp_data = data_to_temp(b_ls.data,b_ls.key) #create temporary data file
+	string temp_data = data_to_temp(b_ls.data,b_ls.key,0) #create temporary data file
 	/*    
 	if exists(obskey)==0
         series obskey = obs
@@ -171,7 +171,7 @@ function void test_plot(list ls "list of series to be plotted",
         series obskey = obs
     endif
 	bundle b_ls = series_to_bundle(ls,obskey)
-	string temp_data = data_to_temp(b_ls.data,b_ls.key) #create temporary data file
+	string temp_data = data_to_temp(b_ls.data,b_ls.key,0) #create temporary data file
 
 
     #start with plotting
