@@ -1,4 +1,68 @@
 #Plot helper functions
+set verbose off
+function matrix MatOrderDist (list ls, list lsB[null])
+    #A function to create data for order stats boxplots (cross-section)
+    scalar two = 0 #no
+    scalar entries = nelem(ls)
+    if exists(lsB) 
+        if nelem(lsB)==entries
+            two = 1 #yes
+        endif 
+    endif
+    strings coln = array(6)
+    coln[1] = "min"
+    coln[2] = "lq"
+    coln[3] = "med"
+    coln[4] = "uq"
+    coln[5] = "max"
+    coln[6] = "avg"
+
+    if two
+        matrix to_plot = zeros(entries,12)
+        strings colnf = array(12)
+        loop i=1..12
+            colnf[i]=coln[i]
+            colnf[i+1]=coln[i]
+            i+=1
+        endloop
+    else
+        matrix to_plot = zeros(entries,6)
+        strings colnf = array(6)	
+        loop i=1..6
+            colnf[i]=coln[i]
+        endloop
+    endif
+    colnames(to_plot,colnf)
+
+    scalar r = 0
+    scalar offset = 0
+    if two
+        offset = 1
+    endif
+    loop foreach item ls -q
+        r+=1	
+        to_plot[r,1] = min($item)
+        to_plot[r+offset*r,2] = quantile($item,.25)
+        to_plot[r+offset*r,3] = quantile($item,.5)
+        to_plot[r+offset*r,4] = quantile($item,.75)
+        to_plot[r+offset*r,5] = max($item)
+        to_plot[r+offset*r,6] = mean($item)
+    endloop
+
+	if two
+	    loop foreach item lsB -q
+            r+=1	
+            to_plot[r+offset*(r-1),1] = min($item)
+            to_plot[r+offset*(r-1),2] = quantile($item,.25)
+            to_plot[r+offset*(r-1),3] = quantile($item,.5)
+            to_plot[r+offset*(r-1),4] = quantile($item,.75)
+            to_plot[r+offset*(r-1),5] = max($item)
+            to_plot[r+offset*(r-1),6] = mean($item)
+        endloop
+	endif
+    #boxplot --matrix=to_plot --output=display {set title "Cross-Section Distribution of Summary Statistics (Original Programme)"; } 
+    return to_plot
+end function
 
 function matrices MSER5 (series ts)
     matrices ms=null
@@ -144,7 +208,7 @@ function string data_to_temp(matrices Ms,
     else
         outfile mybuff --buffer --quiet
     endif
-	set warnings off
+    set warnings off
     loop f=1..n -q ##loop matrices 
         scalar cMf = cols(Ms[f])
         scalar rMf = rows(Ms[f])
@@ -177,7 +241,7 @@ function string data_to_temp(matrices Ms,
         printf "\n\n" #two free lines -- new index block
     endloop
     outfile --close
-	set warnings on
+    set warnings on
     if (stringstream==0) 
         return tmpfile   
     else

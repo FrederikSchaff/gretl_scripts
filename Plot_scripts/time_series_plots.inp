@@ -4,9 +4,16 @@
 
 #first: time-series plot with mser-5 on right axis
 
-function void tsplot_mser (series ts "time-series data",
+function void tsplot_mser (series ts "time-series data", 
+	  string fname[null] "file name",
       scalar plot_MSER5[0:1:0] "plot MSER-5 on second y axis?",
-      scalar plot_freq[0:1:0] "plot frequency distribution?", scalar datafilemode[0:1:0] "datafilemode 1: do not store data in plot file, but on disk")
+      scalar plot_freq[0:1:0] "plot frequency distribution?", 
+	  scalar datafilemode[0:1:0] "datafilemode 1: do not store data in plot file, but on disk",
+      string title[null],
+	  scalar xlow[::0], scalar xhigh[::0], scalar ylow[::0],  scalar yhigh[::0], scalar yticspace[::0], scalar xticspace[::0],
+	  int legend [0:2:1] "0=off, 1=on, 2=only (not working)",
+	  int fontsize[6::14] "Set font size in pt",
+	  int height[240::480], int width[240::640])
 
     #prepare for handling over to series_to_bundle()
     list ls = ts
@@ -51,54 +58,113 @@ function void tsplot_mser (series ts "time-series data",
 		temp_data="$DATA\n"		
     endif
 
-    printf "set encoding utf8\n" 
-    printf "set key autotitle columnheader horizontal under center \n"
+    printf "set encoding utf8\n"
+	
+	# Set resolution
+    if exists(height) && exists(width)
+        scalar slong = strlen(fname)
+        string ftype = substr(fname,(slong-2),slong)	# retrive last 3 characters-->filetype
+        if ftype=="png" || fname=="display"
+            sprintf optTERM "set term pngcairo size %d,%d enhanced font 'serif,%d'\n", width,height,fontsize
+        elif ftype=="pdf"
+            sprintf optTERM "set term pdf size %d,%d enhanced font 'serif,%d'\n", width,height,fontsize
+        else
+            funcerr "** Setting resolution is only allowed for png or pdf files. ***"
+        endif
+    endif
+    printf "%s", optTERM
+
+	if exists(title)
+        printf "set title '%s'\n", title
+    endif
+
+	#range
+	if xhigh > xlow
+		printf "set xrange [%f:%f]\n",xlow,xhigh
+	endif
+	if yhigh > ylow
+		printf "set yrange [%f:%f]\n",ylow,yhigh
+	endif
+	if xticspace>0
+		printf "set xtics %f nomirror\n",xticspace		
+	else
+		printf "set xtics auto nomirror\n"	
+	endif
+	if yticspace>0
+		printf "set ytics %f nomirror\n",yticspace		
+	else
+		printf "set ytics auto nomirror\n"
+	endif
+ 
+    # Legend
+    if legend==0
+        printf "set nokey \n"
+	else
+     	printf "set key autotitle columnheader horizontal under center \n"
+	    printf "set xlabel 'time'\n"
+	endif
     printf "set border %d \n",bs #only left side box-line
-    printf "set xtics nomirror\n"	
-    printf "set ytics nomirror\n"
-    printf "set xlabel 'time'\n"
-    printf "set key center top\n"
+    #printf "set key center top\n"
     if plot_MSER5==1	
         printf "set ylabel 'data'\n"
         printf "set y2tics auto nomirror\n"
         printf "set y2label 'MSER-5'\n"
     endif
 
-    #control for the number of data points to keep format nice!		
-    if 1==rows(b_ls.key[1]) <= 120
-        #start plotting block back: IQR
-        printf " plot '@tmpfile'  index %d using 1:(%f):(%f) w filledcurves below lc rgb %s title 'IQR',\\\n",0,q1,q3,colours_gray_shade(1) 
-        printf " '' 		      index %d using 1:(%f) w lines lw 2 lc rgb %s title 'sd_about_avg',\\\n",0,mean_-sd_,colours_gray_shade(3)
-        printf " '' 		      index %d using 1:(%f) w lines lw 2 lc rgb %s notitle,\\\n",0,mean_+sd_,colours_gray_shade(2,3)
-        printf " '' 			  index %d using 1:(%f):2 w filledcurves above lc rgb %s title 'below median',\\\n",0,med,colour_2_shade(1)
-        printf " '' 			  index %d using 1:(%f):2 w filledcurves below lc rgb %s title 'above median',\\\n",0,med,colour_2_shade(2)
-        #        printf " '' 	          index %d using 1:(%f) w lines lc rgb %s title 'median',\\\n",0,med,colour_5(3) 
-        printf " '' 	          index %d using 1:(%f) w lines dt 3 lw 2 lc rgb %s title 'mean',\\\n",0,mean_,colour_5(3) 
-        printf " '' 	          index %d using 1:2 with lp pt 1 lw 2 lc rgb %s notitle",0,colour_5(1) 
-    else #reduced main plot
-        printf " plot '@tmpfile'  index %d using 1:(%f):(%f) w filledcurves below lc rgb %s title 'IQR',\\\n",0,q1,q3,colours_gray_shade(1) 
-        printf " '' 		      index %d using 1:(%f) w lines lw 2 lc rgb %s title 'sd_about_avg',\\\n",0,mean_-sd_,colours_gray_shade(3)
-        printf " '' 		      index %d using 1:(%f) w lines lw 2 lc rgb %s notitle,\\\n",0,mean_+sd_,colours_gray_shade(2,3)
-        #    printf " '' 			  index %d using 1:(%f):2 w filledcurves above lc rgb %s title 'below median',\\\n",0,med,colour_2_shade(1)
-        #    printf " '' 			  index %d using 1:(%f):2 w filledcurves below lc rgb %s title 'above median',\\\n",0,med,colour_2_shade(2) 
-        printf " '' 	          index %d using 1:(%f) w lines lc rgb %s title 'median',\\\n",0,med,colour_5(3) 
-        printf " '' 	          index %d using 1:(%f) w lines dt 3 lc rgb %s title 'mean',\\\n",0,mean_,colour_5(3) 
-        printf " '' 	          index %d using 1:($2>%f)?($2):(1/0) w points ps .5 pt 3 lc rgb %s notitle,\\\n",0,med,colour_5(1) 
-        printf " '' 	          index %d using 1:($2<%f)?($2):(1/0) w points ps .5 pt 3 lc rgb %s notitle,\\\n",0,med,colour_5(2)
-        printf " '' 	          index %d using 1:($2==%f)?($2):(1/0) w points ps .5 pt 3 lc rgb %s notitle",0,med,colour_5(3) 
+	#only legend mode?
+	if legend==2
+		printf "unset border\n"
+		printf "unset tics\n"
+		printf "unset labels\n"
+		printf "set yrange [-1:1]\n" #a range we can breach
+		#printf " plot sin(x),NaN,NaN w filledcurves below lc rgb %s title 'IQR',\\\n",colours_gray_shade(1) 
+		#printf " ''   sin(x),NaN w lines lw 2 lc rgb %s title 'sd\_about\_avg'\n",colours_gray_shade(3)
+		printf "plot 2 title 'Hello'\n"
+		#printf " plot sin(x),NaN
+		#printf " plot sin(x),NaN
+		#printf " plot sin(x),NaN
+		#printf " plot sin(x),NaN
+	else
 
-    endif
+        #control for the number of data points to keep format nice!		
+        if 1==rows(b_ls.key[1]) <= 120
+            #start plotting block back: IQR
+            printf " plot '@tmpfile'  index %d using 1:(%f):(%f) w filledcurves below lc rgb %s title 'IQR',\\\n",0,q1,q3,colours_gray_shade(1) 
+            printf " '' 		      index %d using 1:(%f) w lines lw 2 lc rgb %s title 'sd\_about\_avg',\\\n",0,mean_-sd_,colours_gray_shade(2,3)
+            printf " '' 		      index %d using 1:(%f) w lines lw 2 lc rgb %s notitle,\\\n",0,mean_+sd_,colours_gray_shade(2,3)
+            printf " '' 			  index %d using 1:(%f):2 w filledcurves above lc rgb %s title 'below median',\\\n",0,med,colour_2_shade(1)
+            printf " '' 			  index %d using 1:(%f):2 w filledcurves below lc rgb %s title 'above median',\\\n",0,med,colour_2_shade(2)
+            #        printf " '' 	          index %d using 1:(%f) w lines lc rgb %s title 'median',\\\n",0,med,colour_5(3) 
+            printf " '' 	          index %d using 1:(%f) w lines dt 3 lw 2 lc rgb %s title 'mean',\\\n",0,mean_,colour_5(3) 
+            printf " '' 	          index %d using 1:2 with lp pt 1 lw 2 lc rgb %s notitle",0,colour_5(1) 
+        else #reduced main plot
+            printf " plot '@tmpfile'  index %d using 1:(%f):(%f) w filledcurves below lc rgb %s title 'IQR',\\\n",0,q1,q3,colours_gray_shade(1)  
+            printf " '' 	          index %d using 1:($2>%f)?($2):(1/0) w points ps .5 pt 3 lc rgb %s notitle,\\\n",0,med,colour_5(1) 
+            printf " '' 	          index %d using 1:($2<%f)?($2):(1/0) w points ps .5 pt 3 lc rgb %s notitle,\\\n",0,med,colour_5(2)
+            printf " '' 	          index %d using 1:($2==%f)?($2):(1/0) w points ps .5 pt 3 lc rgb %s notitle,\\\n",0,med,colour_5(3)
+    		printf " ''  			  index %d using 1:(%f) w lines lw 2 lc rgb %s notitle,\\\n",0,q3,colours_gray_shade(1)  
+    		printf " ''  			  index %d using 1:(%f) w lines lw 2 lc rgb %s notitle,\\\n",0,q1,colours_gray_shade(1)
+            printf " '' 		      index %d using 1:(%f) w lines lw 2 lc rgb %s title 'sd\_about\_avg',\\\n",0,mean_-sd_,colours_gray_shade(2,3)
+            printf " '' 		      index %d using 1:(%f) w lines lw 2 lc rgb %s notitle,\\\n",0,mean_+sd_,colours_gray_shade(2,3)
+            printf " '' 	          index %d using 1:(%f) w lines lc rgb %s title 'median',\\\n",0,med,colour_5(3) 
+            printf " '' 	          index %d using 1:(%f) w lines dt 3 lc rgb %s title 'mean'\\\n",0,mean_,colour_5(3)
+        endif
+    
+        if plot_MSER5 == 1
+            printf ",\\\n"	
+            printf " ''               index %d using 1:2 with steps lc rgb %s,\\\n",1,colour_5(4) 	
+            printf " ''               index %d using 1:2 axes x1y2 with steps lc rgb %s\n",2,colour_5(5) 
+        else
+            printf "\n"
+        endif
 
-    if plot_MSER5 == 1
-        printf ",\\\n"	
-        printf " ''               index %d using 1:2 with steps lc rgb %s,\\\n",1,colour_5(4) 	
-        printf " ''               index %d using 1:2 axes x1y2 with steps lc rgb %s\n",2,colour_5(5) 
-    else
-        printf "\n"
-    endif
-
-		    
+	endif	    
 
     outfile --close 
-    gnuplot --input=@tmpfile --output=display
+	if legend==2 #change name of plot
+		scalar slong = strlen(fname)
+		string newname = substr(fname,1,(slong-4)) ~ "_legend_" ~ substr(fname,(slong-3),slong)
+		fname = newname
+	endif
+    gnuplot --input=@tmpfile --output=@fname
 end function
