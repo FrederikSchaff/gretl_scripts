@@ -1,0 +1,225 @@
+#Plot helper functions
+
+/* Global defaults - already in correct format
+   "NULL" is a placeholder for [null] Option where valid & lists
+   MY_NULL = 987654321 is a placeholder for null option for scalars.
+
+*/
+
+function scalar special_plot_MY_NULL()
+    return 987654321
+end function
+
+function string special_plot_MY_STRNULL()
+    return "MY_NULL"
+end function
+
+function scalar special_plot_exists(bundle *specs, string subspec)
+    # set verbose off
+	scalar intype = inbundle(specs,@subspec)
+    if intype == 0 #just in case..
+        return 0 #not existent at all, default
+    endif
+	if intype == 1	#scalar
+    	if specs.@subspec == special_plot_MY_NULL()
+        	return 0 #default
+	   	endif
+	elif intype == 4 #string
+		if specs.@subspec == special_plot_MY_STRNULL()
+        	return 0 #default
+		endif
+	elif specs.@subspec == null #does this work for other types?? Or nelem??
+		funcerr "** Error: Not specified for this."
+   	endif
+    return 1 #use the value
+end function
+
+function list special_plot_NonConstList(list Input)
+    # set verbose off
+    /* Make constants non constant (adds nonConst_ series for each const*/
+    list outlist = null    
+    loop foreach i Input --quiet
+        if var(Input.$i) > 1e-20  # some arbitrary small number
+            outlist += Input.$i
+        else 
+            series nonConst_$i = Input.$i + uniform() * 1e-10
+            outlist += nonConst_$i
+        endif
+    endloop
+    return outlist
+end function
+
+
+
+function matrix special_plot_MatOrderDist (list ls, list lsB[null], strings sample[null])
+    # set verbose off
+    #A function to create data for order stats boxplots (cross-section)
+    if !exists(sample)
+        strings sample = array(2)
+        sample[1] = "A"
+        sample[2] = "B"
+    endif
+    scalar two = 0 #no
+    scalar entries = nelem(ls)
+    if nelem(lsB)==entries
+        two = 1 #yes
+    endif 
+    strings coln = array(6)
+    coln[1] = "min"
+    coln[2] = "lq"
+    coln[3] = "med"
+    coln[4] = "uq"
+    coln[5] = "max"
+    coln[6] = "avg"
+
+    if two == 1
+        matrix to_plot = zeros(entries,12)
+        strings colnf = array(12)
+        j=0
+        loop i=1..6 -q
+            j+=1
+            colnf[j]=sprintf("%s_%s",sample[1],coln[i])
+            j+=1
+            colnf[j]=sprintf("%s_%s",sample[2],coln[i])
+        endloop
+    else
+        matrix to_plot = zeros(entries,6)
+        strings colnf = array(6)	
+        loop i=1..6 -q
+            colnf[i]=sprintf("%s",coln[i])
+        endloop
+    endif
+    colnames(to_plot,colnf)
+    #  	loop i=1..nelem(colnf) -q
+    #  		printf("%s\n",colnf[i])
+    #  	endloop
+    scalar r = 0
+    loop foreach item ls -q
+        scalar offset = 0
+        r+=1	
+        to_plot[r,1+offset] = min(ls.$item)
+        if two == 1
+            offset += 1
+        endif
+        to_plot[r,2+offset] = quantile(ls.$item,.25)
+        if two == 1
+            offset += 1
+        endif
+        to_plot[r,3+offset] = quantile(ls.$item,.5)
+        if two == 1
+            offset += 1
+        endif
+        to_plot[r,4+offset] = quantile(ls.$item,.75)
+        if two == 1
+            offset += 1
+        endif
+        to_plot[r,5+offset] = max(ls.$item)
+        if two == 1
+            offset += 1
+        endif
+        to_plot[r,6+offset] = mean(ls.$item)
+    endloop
+
+    if two == 1
+        scalar r = 0
+
+        loop foreach item lsB -q
+            scalar offset = 1
+            r+=1	
+            to_plot[r,1+offset] = min(lsB.$item)
+            if two == 1
+                offset += 1
+            endif
+            to_plot[r,2+offset] = quantile(lsB.$item,.25)
+            if two == 1
+                offset += 1
+            endif
+            to_plot[r,3+offset] = quantile(lsB.$item,.5)
+            if two == 1
+                offset += 1
+            endif
+            to_plot[r,4+offset] = quantile(lsB.$item,.75)
+            if two == 1
+                offset += 1
+            endif
+            to_plot[r,5+offset] = max(lsB.$item)
+            if two == 1
+                offset += 1
+            endif
+            to_plot[r,6+offset] = mean(lsB.$item)
+        endloop        
+    endif
+
+    #make sure that there is "enough" variance for the boxplot.
+    loop for c=1..cols(to_plot) -q
+        scalar temp = to_plot[1,c]
+        loop for r=2..rows(to_plot)
+            if to_plot[r,c]!=temp
+                break
+            elif r==rows(to_plot)
+                to_plot[r,c]+=1e-15 #add minor artifact to allow boxplots
+            endif
+        endloop
+    endloop #boxplot --matrix=to_plot --output=display {set title "Cross-Section Distribution of Summary Statistics (Original Programme)"; } 
+    return to_plot
+end function
+
+
+
+function matrices special_plot_ts_to_mc(list ls "input")
+    # set verbose off
+    matrices M = null
+    #loop foreach l ls
+    #    matrix temp = l
+    #colnames(temp,varname(l))
+    loop s=1..nelem(ls)
+        matrix temp = ls[s]
+        colnames(temp,varname(ls[s]))
+        M += temp
+    endloop
+    return M
+end function
+
+function bundle special_plot_ts_to_bndl(list ls[null], series obskey[null], matrices ms[null])
+    # set verbose off
+    #transform series in bundle of two matrices, the key and the data
+    matrices ms_dat = null
+    matrices ms_obs = null
+
+    if exists(ls)
+        if nelem(ls)>0
+            loop i=1..nelem(ls) --quiet
+                matrix m_dat = {ls[i]}
+                colnames(m_dat,varname(ls[i]))    
+                ms_dat += m_dat
+            endloop	
+
+            if exists(obskey)==0
+                series obskey = obs
+            endif
+            matrix m_obs = {obskey}
+            colnames(m_obs,varname(obskey))
+            ms_obs += m_obs #wee need the matrices format
+        endif
+    endif
+
+
+    if exists(ms)
+        loop i=1..nelem(ms) --quiet
+            matrix m_dat = ms[i][,2]
+            colnames(m_dat,colname(ms[i],2))    
+            ms_dat += m_dat
+
+            matrix m_obs = ms[i][,1]
+            colnames(m_obs,colname(ms[i],1))
+            ms_obs += m_obs #wee need2 the matrices format
+        endloop	
+    endif
+
+
+    bundle b_dat = null
+    b_dat.data = ms_dat
+    b_dat.key = ms_obs
+    return b_dat
+end function
+

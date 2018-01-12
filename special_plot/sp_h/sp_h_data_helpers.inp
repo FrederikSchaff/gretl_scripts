@@ -1,0 +1,267 @@
+/* Header */
+function string special_plot_ts_gp_data (bundle * specs)
+  # set verbose off
+	string buff = special_plot_mx_ts_gp_data(&specs, "ts") 
+	return  buff #direct piping of return values not possible
+end function
+
+function string special_plot_mx_gp_data (bundle * specs)
+  # set verbose off 
+	string buff = special_plot_mx_ts_gp_data(&specs, "mx") 
+	return buff
+end function
+
+function string special_plot_mx_ts_gp_data (bundle * specs[null], string InputType "ts=timeseries, mx=matrix")
+  # set verbose off
+/* This function writes a matrix with potential columnames and also rownames. 
+   	It should not be called directly, but via the wrappers for matrix, matrices, timeseries 
+	and/or lists. 
+   	into a gnuplot datablock with two blank trailing lines, allowing a direct adding of 
+   	another such block.
+
+   	For standard plots the first column should be ignored (these are the rowheaders)
+    */
+	scalar intype = 0 #return with funcerr if not ok.
+    if exists(specs)
+        if inbundle(specs,input)==5
+            intype = inbundle(specs.input,ts) #2 for series, 3 for matrix
+        endif
+    endif
+	if InputType=="ts" #make faster, no transformation into a matrix!
+		if intype != 7
+			funcerr "** Error: In 'special_plot_mx_ts_gp_data ()', input missing/wrong: Should be list containing the timeseries"
+		else
+			matrix M = {specs.input.ts[1]}
+			if inbundle(specs,int_DSM)==6 #a name matrix exists (strings == array)
+    			if $nobs == nelem(specs.int_DSM) #complete sample
+    				rownames(M,specs.int_DSM)
+    			else
+					#not efficient. A mask would be better.
+					strings obskeys = array($nobs)					
+					loop i=1..$nobs
+						scalar indx = specs.int_obsls[1][i]						
+						obskeys[i]=specs.int_DSM[indx]
+					endloop
+					rownames(M,obskeys)
+#    				funcerr "** Error: the obsnumbers are not synchronised with the data. \n** Please update via special_plot_update_obskeys(..) \n" 				
+    			endif
+			else
+				printf "\n~~Attention: No obskeys provided! Please update via special_plot_update_obskeys(..) if wished otherwise \n" 
+			endif
+			if inbundle(specs.input,tsn)==4
+				colnames(M,specs.input.tsn) #The information for the columnname == variablename/key exists
+			endif			
+		endif					
+	elif InputType=="mx"
+		intype = inbundle(specs.input,mx) #2 for series, 3 for matrix
+		if intype == 3
+			#unnecessary copy operation here.
+			matrix M = specs.input.mx #if row/columnnames exist, they must already be included in the matrix
+		else
+			funcerr "** Error: In 'special_plot_mx_ts_gp_data ()', input missing/wrong: Should be matrix.\n"		
+		endif
+	else
+		funcerr "** Error: In 'special_plot_mx_ts_gp_data ()', input type missing.\n"			
+	endif
+	
+	string buff = special_plot_direct_mx_gp_data(&M)
+	return buff
+    
+end function
+
+function string special_plot_direct_mx_gp_data(matrix *M)
+/* Print the provided matrix directly into a stringbuffer, suitable as gnuplot datablock.
+	FUTURE If provided, the rownames are used as first (string) column. Else the rownumbers are used.
+	Similar, columnames are used as columnhead (title). */
+ 
+	scalar cM = cols(M)
+    scalar rM = rows(M)
+	
+	#print M
+	
+    outfile mybuff --buffer --quiet #open buffer
+    set warnings off
+    loop r=0..rM  -q #loop rows, 0 for columnhead
+        loop c=-1..cM  -q #loop columns, 0 for rowhead
+            if r==0 #print column headers
+				if c==-1
+                    printf "\"x-Label\" " #the first row has no own name                    
+				elif c==0
+					printf "\"Obs/time/x\" " #Observation number or time
+                else                        
+                    printf "\"%s\" ", colname(M, c) #print columnhead (if exists, else it is generic?)
+                endif                    
+            else
+                if c==-1 #print row headers
+                    if 0 #test if rownames exist somehow
+                        printf "\"%s\" ", rowname(M,r) #command missing!
+                    else
+                        printf "\"%d\" ", r #print the row number
+                    endif
+				elif c==0 #print x value
+						printf "%d ", r
+                else                        
+                    printf "%g ",M[r,c] #print data
+                endif                    
+            endif                            
+        endloop
+        printf "\n" #new row after each line
+    endloop
+    printf "\n\n" #two free lines -- new index block
+	
+    outfile --close
+    set warnings on
+    return mybuff
+end function
+
+function string special_plot_mc_gp_data (bundle * specs)
+  # set verbose off
+/* This function writes a number of potentially different sized matrices with potential columnames and also rownames 
+   into a number of gnuplot datablocks with two blank trailing lines, allowing a direct adding of 
+   another such block.
+
+   For standard plots the first column should be ignored (these are the rowheaders)
+    */
+	scalar intype = 0 #return with funcerr if not ok.
+    if exists(specs)
+        if inbundle(specs,input)==5
+            intype = inbundle(specs.input,mc) #2 for series, 3 for matrix
+        endif
+    endif
+	if intype != 6 #Array == Matrices
+			funcerr "** Error: In 'special_plot_mc_gp_data ()', input missing/wrong: Should be matrices"
+	else
+		matrices *MS = specs.input.mc
+	endif
+
+    outfile mybuff --buffer --quiet #open buffer
+    set warnings off
+	
+    scalar n = nelem(MS)
+    loop ms=1..n -q
+        printf special_plot_mx_gp_datablock(null, "mx",&MS[ms]) 
+    endloop
+    outfile --close
+    set warnings on
+    return mybuff	
+end function
+
+/* From Artur and Sven (?) */
+function strings special_plot_s2a (series y)
+  # set verbose off
+    # put numerical values into an array of strings
+    n = nobs(y)
+    strings S=array(n)
+    loop i=1..n -q
+        sprintf s "%d", y[i]
+        S[i] = "@s"
+    endloop
+    return S
+end function
+
+function strings special_plot_asdate (strings S "stringified $obsdate array",
+      int dform[0:4:1] "0=Y/M/D, 1=y/M/D, 2=Y/M, 3=y/M, 4=M/D")
+        # set verbose off
+    n=nelem(S)
+    strings D = array(n)
+    loop i=1..n -q
+        string s = S[i]
+        string y = substr(s,1,4)			# year
+        string m = substr(s,5,6)			# month
+        string d = substr(s,7,8)			# day
+        if dform==0
+            D[i] = sprintf("%s/%s/%s",y,m,d)
+        elif dform==1
+            y = substr(y,3,4)
+            D[i] = sprintf("%s/%s/%s",y,m,d)
+        elif dform==2
+            D[i] = sprintf("%s/%s",y,m)
+        elif dform==3
+            y = substr(y,3,4)
+            D[i] = sprintf("%s/%s",y,m)
+        elif dform==4
+            D[i] = sprintf("%s/%s",m,d)
+        endif        
+    endloop
+    return D
+end function
+
+function void special_plot_setup_main(bundle * spdef) ##string
+  # set verbose off
+/* 	This function defines the main settings and provides a string that 
+   can be written to file within the plot function / directly prints 
+   them to file.
+    */	
+
+    printf "set encoding utf8\n"
+
+    #Check if the filename includes a filetype. If yes, update filetype. Also update internal filename.
+    scalar slong = strlen(spdef.int_fnm)
+    if slong>4 && substr(spdef.int_fnm,(slong-3),(slong-3))=="."
+        special_plot_modify_defaults(&spdef, "internal_filename",substr(spdef.int_fnm,1,(slong-4))) #set internal filename
+        special_plot_modify_defaults(&spdef, "outputtype",substr(spdef.int_fnm,(slong-2),slong)) #set type			     
+    endif	
+		 	
+    # Set resolution
+    if inbundle(spdef,vsz)==1 && inbundle(spdef,hsz)==1
+        if spdef.oty=="png" || spdef.int_fnm=="display"
+            sprintf optTERM "set term pngcairo size %d,%d enhanced font 'serif,%d'\n", spdef.hsz,spdef.vsz,spdef.ftz
+        elif spdef.oty=="pdf"
+            sprintf optTERM "set term pdf size %d,%d enhanced font 'serif,%d'\n", spdef.hsz,spdef.vsz,spdef.ftz
+        else
+			string err_str = sprintf("** ERROR ** Setting resolution is only allowed for png or pdf files.\n / Currently no more types supported. Selected type was: '%s', filename: '%s' ***",spdef.oty,spdef.int_fnm)
+            funcerr err_str
+        endif
+    endif
+    printf "%s", optTERM
+
+    if inbundle(spdef,ttl)==4
+        printf "set title '%s'\n", spdef.ttl
+    endif
+
+    #range
+    if special_plot_exists(&spdef,"xhi") && special_plot_exists(&spdef,"xlo")
+        printf "set xrange [%f:%f]\n",spdef.xlo,spdef.xhi
+    elif special_plot_exists(&spdef,"xhi")
+        printf "set xrange [*:%f]\n",spdef.xhi
+    elif special_plot_exists(&spdef,"xlo")
+        printf "set xrange [*:%f]\n",spdef.xlo
+    endif
+    if special_plot_exists(&spdef,"yhi") && special_plot_exists(&spdef,"ylo")
+        printf "set yrange [%f:%f]\n",spdef.ylo,spdef.yhi
+    elif special_plot_exists(&spdef,"yhi")
+        printf "set yrange [*:%f]\n",spdef.yhi
+    elif special_plot_exists(&spdef,"ylo")
+        printf "set yrange [*:%f]\n",spdef.ylo
+    endif
+
+
+    if special_plot_exists(&spdef,"xtc")
+        printf "set xtics %f nomirror\n",spdef.xtc		
+    else
+		#calculate autmatically
+        printf "set xtics auto nomirror\n"	
+    endif
+    if special_plot_exists(&spdef,"ytc")
+        printf "set ytics %f nomirror\n",spdef.ytc		
+    else
+        printf "set ytics auto nomirror\n"
+    endif
+
+ 
+    # Legend #to do: more options in bundle
+    if spdef.lgd==0
+        printf "set nokey \n"
+    else
+        printf "set key autotitle columnheader horizontal under center \n"
+    endif
+
+	if special_plot_exists(&spdef,"xlb")
+		printf "set xlabel '%s'\n",spdef.xlb
+	endif
+
+    #boardes
+    scalar bs = 2 #left only, using the bitmask format
+    printf "set border %d \n",bs #only left side box-line
+
+end function

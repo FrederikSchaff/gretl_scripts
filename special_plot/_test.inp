@@ -1,0 +1,63 @@
+/* This is an example file for the package ... generating 2 of each type of graph */
+nulldata 500
+/* Please adjust the specialPlotDir */
+	string specialPlotDir = "C:/Users/Frederik/Documents/gretl/Gretl_scripts/special_plot" 
+
+set workdir "@specialPlotDir"
+include "@specialPlotDir/special_plot.inp" --force
+setobs 1 1 --time-series
+
+#for info... follow the info (not yet ready)
+special_plot()
+
+
+series obsdate = obs #create series with unique identifier within the sample
+bundle spbndl = special_plot_get_defaults(&obsdate) #load defaults
+
+
+
+#some data
+series a_1 = normal(-1,1)
+series a_2 = uniform(-.5,.5)+normal(-.5,.5)
+
+list mylist = a*
+scalar items = nelem(mylist)
+
+#some statistics -- provide function later
+scalar y_min = min(mylist[1])
+scalar y_max = max(mylist[2])
+loop for item=2..items -q 
+	y_min = xmin(y_min,min(mylist[item]))
+	y_max = xmax(y_min,max(mylist[item]))
+endloop
+
+#some direct manipulation -- nor recommended, but possible
+spbndl.xtc = 100
+spbndl.ylo = y_min
+spbndl.yhi = y_max
+
+
+
+loop for item=1..items -q 
+	string ts=sprintf("%s",varname(mylist[item]))
+	special_plot_add_ts(&spbndl,&@ts,"")
+	string title = ts
+	#string title = strsub(ts,"_"," ")
+	special_plot_modify_defaults(&spbndl,"title",title)
+	special_plot("ts_detailed",&spbndl)		
+	special_plot("ts_mser",&spbndl)	 
+endloop
+
+#subsample, still the plot works --- BUT HERE COMES THE ERROR
+
+smpl 200 300
+
+loop for item=1..items -q 
+	string ts=sprintf("%s",varname(mylist[item]))
+	special_plot_add_ts(&spbndl,&@ts,"")
+	string title = ts
+	#string title = strsub(ts,"_"," ")
+	special_plot_modify_defaults(&spbndl,"title",title)
+	special_plot("ts_detailed",&spbndl)		
+	special_plot("ts_mser",&spbndl)	 
+endloop

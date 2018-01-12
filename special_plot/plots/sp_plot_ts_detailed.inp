@@ -1,0 +1,105 @@
+printf "\n~~ special_plot package: Loaded plot \"ts_detailed\"."
+#some plot function, using helpers and colours
+#Thanks to artur tarassow for help!
+#these are (mainly) ment for cross-sectional data!
+
+#first: time-series plot with mser-5 on right axis
+
+#scalar MY_NA = 987654321
+function void special_plot_ts_detailed_h()
+	printf "\n~~Function 'special_plot_ts_detailed(&SpecialPlotBundle)' \
+			\n  called via 'special_plot(\"ts_detailed\",&SpecialPlotBundle)' \
+			\n  Options: detail\
+			\n 	Plots a given timeseries, its mean and median, its IQR and the standard \
+			\n  deviation around the mean. \
+			\n	Comes with two levels of detail (0,1, or [auto]). auto selects high \
+			\n  detail (1) if $nobs<=150 and low detail (0) else. \
+			--------\n"
+	return
+end function
+
+function void special_plot_ts_detailed (bundle * specs[null])
+#	# set verbose off
+ 	if !exists(specs)
+ 		special_plot_ts_detailed_h()
+ 		return
+ 	endif
+
+	if !inbundle(specs,input)==5
+		funcerr "**Error in 'special_plot_ts_detailed()': There should be a bundle 'input' within the bundle 'specs'!"
+	elif !inbundle(specs.input,ts)==7
+		funcerr "**Error in 'special_plot_ts_detailed()': There should be a list element 'ts' in bundle 'input' within the bundle 'specs'!"
+    endif
+    #first, calculate some stats
+    scalar med = median(specs.input.ts[1])
+    #scalar min_ = min(ts)
+    #scalar max_ = max(ts)
+    scalar mean_ = mean(specs.input.ts[1])
+    scalar sd_ = sd(specs.input.ts[1])
+    scalar q1 = quantile(specs.input.ts[1],0.25)
+    scalar q3 = quantile(specs.input.ts[1],0.75)	
+
+	 
+    string temp_data = special_plot_ts_gp_data(&specs) #prepare the data for gnuplot
+	
+    #start with plotting
+    tmpfile = sprintf("%s/tmp_out.gp", $dotdir)
+    outfile @tmpfile --write --quiet #open temp outfile
+    set warnings off
+
+	#Datablock
+    printf "$DATA << EOD\n"
+    string line
+    loop while getline(temp_data, line) --quiet
+        printf "%s\n", line
+    endloop
+    printf "EOD\n"
+    temp_data="$DATA"		
+
+	special_plot_setup_main(&specs)
+	scalar detail = 0
+	if specs.dtl == 1
+		detail = 1
+	elif specs.dtl == special_plot_MY_NULL()		 
+		if $nobs > 150
+			detail = 0
+		else
+			detail = 1
+		endif
+	endif
+
+        #control for the number of data points to keep format nice!
+		#printf " plot '@tmpfile' \\\n"		
+        if detail == 1
+            #start plotting block back: IQR
+            printf " plot '@temp_data'  index %d using 2:(%f):(%f) w filledcurves below lc rgb %s title 'IQR',\\\n",0,q1,q3,colours_gray_shade(1) 
+            printf " '' 		      index %d using 2:(%f) w lines lw 2 lc rgb %s title 'mean +/- s.d.',\\\n",0,mean_-sd_,colours_gray_shade(2,3)
+            printf " '' 		      index %d using 2:(%f) w lines lw 2 lc rgb %s notitle,\\\n",0,mean_+sd_,colours_gray_shade(2,3)
+            printf " '' 			  index %d using 2:(%f):3 w filledcurves above lc rgb %s title 'below median',\\\n",0,med,colour_2_shade(1)
+            printf " '' 			  index %d using 2:(%f):3 w filledcurves below lc rgb %s title 'above median',\\\n",0,med,colour_2_shade(2)
+            printf " '' 	          index %d using 2:(%f) w lines lc rgb %s title 'median',\\\n",0,med,colour_5(3) 
+            printf " '' 	          index %d using 2:(%f) w lines dt 3 lw 2 lc rgb %s title 'mean',\\\n",0,mean_,colour_5(3) 
+            printf " '' 	          index %d using 2:3 with lp pt 1 lw 2 lc rgb %s notitle",0,colour_5(1) 
+        else #reduced main plot
+            printf " plot '@temp_data'  index %d using 2:(%f):(%f) w filledcurves below lc rgb %s title 'IQR',\\\n",0,q1,q3,colours_gray_shade(1)  
+            printf " '' 	          index %d using 2:($3>%f)?($3):(1/0) w points ps .5 pt 3 lc rgb %s notitle,\\\n",0,med,colour_5(1) 
+            printf " '' 	          index %d using 2:($3<%f)?($3):(1/0) w points ps .5 pt 3 lc rgb %s notitle,\\\n",0,med,colour_5(2)
+            printf " '' 	          index %d using 2:($3==%f)?($3):(1/0) w points ps .5 pt 3 lc rgb %s notitle,\\\n",0,med,colour_5(3)
+    		printf " ''  			  index %d using 2:(%f) w lines lw 2 lc rgb %s notitle,\\\n",0,q3,colours_gray_shade(1)  
+    		printf " ''  			  index %d using 2:(%f) w lines lw 2 lc rgb %s notitle,\\\n",0,q1,colours_gray_shade(1)
+            printf " '' 		      index %d using 2:(%f) w lines lw 2 lc rgb %s title 'mean +/- s.d.',\\\n",0,mean_-sd_,colours_gray_shade(2,3)
+            printf " '' 		      index %d using 2:(%f) w lines lw 2 lc rgb %s notitle,\\\n",0,mean_+sd_,colours_gray_shade(2,3)
+            printf " '' 	          index %d using 2:(%f) w lines lw 2 lc rgb %s title 'median',\\\n",0,med,colour_5(3) 
+            printf " '' 	          index %d using 2:(%f) w lines dt 3 lw 2 lc rgb %s title 'mean'\\\n",0,mean_,colour_5(3)
+        endif
+            
+
+    outfile --close 
+    set warnings on
+
+	string fname = "display"
+	if specs.int_fnm != "display"
+		string fname = "ts_detailed_" ~ specs.int_fnm ~ "." ~ specs.oty
+	endif
+    gnuplot --input=@tmpfile --output=@fname
+end function

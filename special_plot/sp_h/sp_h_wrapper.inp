@@ -1,0 +1,473 @@
+/*
+   plot_wrapper.inp
+
+   checks to do:
+   -	obsdate behaviour in panel setting / under different time-series settings
+   - 	way to make sure sample is not subsamples / or take care of it (obsdates) / or at least test if its fine (SHOULD BE!)
+
+   . use quoted keys instead of my short keys? Are there performance issues? At any rate, this would allow a generic "update" method.
+*/
+
+# /* Helpers */
+# include plot_data_helpers.inp
+# include helpers.inp
+# /* Potential Plot Options */
+# include ts_detailed.inp
+function void special_plot_help()
+	printf "\n~~ special_plot_plots(): \
+\n 	The general command is: 'special_plot(&SPECIAL_PLOT_BUNDLE,\"PLOT-OPTION\",[optional]\"base-name\"\
+\n		Note: The naming is always: 'workdir/PLOT-OPTION_base-name.TYPE'\
+\n 		  You may skip the base-name, in which case a generic name is used.\
+\n	.\
+\n	The following plot options exist: \
+\n	.\
+\n 	1) \"ts_detailed\" : A detailed timeseries plot with visualised summary statistics. \
+\n 	2) \"mser\"		  : A \"mean-square-error-rule (MSER-5)\" plot for visual warm-up / stationarity check. \
+"
+	return
+end function
+
+
+function void special_plot_h()
+    printf "\n	~~ special_plot()\
+\n	This function package provides a general interface for specialised plots. \n \
+\n	Currently only cross-section and time-series data has been tested.\
+\n	To get some information on the basic plots available, enter 'special_plot(\"help\")'\
+\n 	Note: In general, calling a function without arguments will print some help.\
+\n	.\
+\n	How to use special_plot() package: \
+\n	[Optional] Set your workdir path to where you want the output: 'set \"workdir c:/example/path\"\
+\n				Note: 	Filenames must be without a path (i.e. are stored within the workdir).\
+\n						In general, filenams are \"PLOT_NAME_FILENAME.OUTPUTTYPE\".\
+\n	[Optional, timeseries] Use the 'setobs' command to define the periodicity of your data. \
+\n				Example: 'setobs 1 1 --time-series' or 'setobs 1 1 --cross-section'\
+\n	.\
+\n 	1)	Initialise the special plots bundle: \
+\n 	1-a)	series obsdate = obs	//Create a series with unique obs keys for the current sample\
+\n 	1-b)	bundle spbndl = special_plot_get_defaults(&obsdata)   //Create the special-plot bundle\
+\n 	[Optional, timeseries] Set the date format via 'special_plot_update_obstimes(...)'\
+\n	[Optional, cross-section] Set the observation keys via 'special_plot_update_obskeys(...)'\
+\n	[Optional] Modify additional default options via 'special_plot_modify_defaults(...)'\
+\n	.\
+\n	2) 	Add the data you want to plot. Note: The plots deal with one type of data, \
+\n			specified by the prescript. \"ts\" e.g. is for timeseries.\
+\n	[Optional] Get information on the data needed for the plot, for example: 'special_plot(\"ts_detailed\")'\
+\n	2-a.. [Timeseries] special_plot_add_ts(...) \
+\n	2-a.. [Single Matrix] special_plot_add_ts(...) \
+\n	2-a.. [Matrices] special_plot_add_mc(...) \
+\n	2-a.. [List] special_plot_add_ls(...) \
+\n	.\
+\n	3)	Plot your data.\
+\n	.\
+\n	-- That's it. If you want to add to this package or have some questions, feel free to contact me: --\
+\n		mailto: frederik.schaff@rub.de\
+\n	.."
+end function
+
+function void special_plot(string plot_type[null] "the plot type. Options are:  to do...",
+      bundle *specs[null] "the bundle with all options and input.",       	
+      string fname[null] "the name of the plot (Output) -- can temporary overwrite type.")
+        # set verbose off
+
+    if !exists(plot_type) #print help?
+        special_plot_h()
+        return #needs to be in a seperate line, although special_plot_h() is type void
+	elif plot_type == "help"
+		special_plot_help()
+		return
+    else	
+	#check if a name is provided, if yes, update plotinfo
+        if exists(fname)
+            specs.int_fnm = fname
+		else
+			specs.int_fnm=sprintf("special_plot_%d",specs.int_pco) #default filename for writing to file.			
+        endif
+	endif
+
+	scalar onlyHelp = 1 ##1 if yes
+	if exists(specs)
+		onlyHelp = 0
+		special_plot_check_sample_ok(&specs)
+		specs.int_pco += 1 #increase the internal plot count. Relevant for (e.g.) automatic naming.
+	endif
+
+    if plot_type == "ts_detailed"
+        if onlyHelp
+            special_plot_ts_detailed()
+            return
+        else
+            special_plot_ts_detailed(&specs)
+            return
+        endif
+	elif plot_type == "ts_mser"
+        if onlyHelp
+            special_plot_ts_mser()
+            return
+        else
+            special_plot_ts_mser(&specs)
+            return
+        endif
+    else
+        string err_str=printf("** Error: Plot type '%s' not known. Use 'special_plot()' to get an overview of available plot types.",plot_type) 
+        funcerr err_str        
+    endif
+end function
+
+function bundle special_plot_get_defaults(series *obsdata[null] "You need to provide an exernal series obsdate = obs")
+  # set verbose off
+    /* defines the globals at produces a bundle with them. Should be used with full sample! Also can be used to reset a bundle */
+	if exists(obsdata)
+	else
+		string err_str = sprintf("\n~~ 'special_plot_get_defaults(series *obsdata)': Produces a bundle with default \
+				\n   initial values for the special_plot() function. You need to initialise a series \
+				\n   \"series obsdata = obs\" first and supply it via reference (&obsdata) to this function.\
+				\n   (This series will later serve as a map from internals to externals in case of subsamples)")
+		funcerr err_str
+	endif
+
+
+    scalar MY_NULL = special_plot_MY_NULL() #use a special default value to enable automatic behaviour of gnuplot
+	string MY_STRNULL = special_plot_MY_STRNULL()
+	
+
+    #for easier reading / understanding of the meaning
+    scalar special_plot_dateformat = 1 #"0=Y/M/D, 1=y/M/D, 2=Y/M, 3=y/M, 4=M/D, 5=integers" #if applicable, the format for the date
+    scalar special_plot_detail = MY_NULL #The specific level of detail, if option available. 
+    scalar special_plot_font_size = 12 #Default Font Size
+    #scalar special_plot_datafilemode = 0 #0: Store data in (temp) gnupolot file; 1# store in (temp) file on disk
+    string special_plot_title = MY_STRNULL#"NULL" # "NULL" is a placeholder for [null] Option.  
+	string special_plot_xlabel = MY_STRNULL
+	string special_plot_ylabel = MY_STRNULL
+	string special_plot_y2label = MY_STRNULL
+    scalar special_plot_xlow = MY_NULL #let gnuplot decide...
+    scalar special_plot_xhigh = MY_NULL 
+    scalar special_plot_ylow = MY_NULL
+    scalar special_plot_yhigh = MY_NULL
+    scalar special_plot_yticspace = MY_NULL
+    scalar special_plot_xticspace = MY_NULL
+    scalar special_plot_legend = 1 #0 off, 1 on
+    scalar special_plot_width = 640 #let gretl decide...
+    scalar special_plot_height = 480
+    string special_plot_outputtype = "png"
+    #scalar special_plot_
+
+    bundle spdef #special plot default values bundle (and other options, too)
+    spdef.dft = special_plot_dateformat
+    spdef.dtl = special_plot_detail
+    spdef.ftz = special_plot_font_size
+    #spdef.dfm = special_plot_datafilemode
+    spdef.ttl = special_plot_title
+    spdef.xlo = special_plot_xlow
+    spdef.xhi = special_plot_xhigh
+    spdef.ylo = special_plot_ylow
+    spdef.yhi = special_plot_yhigh
+    spdef.ytc = special_plot_yticspace
+    spdef.xtc = special_plot_xticspace
+    spdef.lgd = special_plot_legend
+    spdef.hsz = special_plot_width
+    spdef.vsz = special_plot_height
+    spdef.oty = special_plot_outputtype
+	spdef.xlb = special_plot_xlabel
+	spdef.ylb = special_plot_ylabel
+	spdef.y2lb = special_plot_y2label
+    #spdef.
+
+
+	special_plot_ReInit_sample(&spdef,&obsdata) #load information regarding the sample and identification keys 
+
+
+	#provide a bundle for the input (series, matrix, matrices, lists)
+	bundle input 
+	spdef.input = input
+	
+	#Optional input later on:
+	#spdef.input.ts[1] will refer to optional time series
+	#spdef.input.tsn will be an alternative key
+	#other, potential elements initialised whenever necessary are:
+	#spdef.input.mx #single matrix
+	#spdef.input.mc #matrices
+	#spdef.input.ls #single list
+	#spdef.input.lsn #alternative strings for keys
+
+    #internals -- should not be modified by the special_plot_modify_defaults() function ---
+	scalar special_plot_internal_plotcount = 1
+	spdef.int_pco = special_plot_internal_plotcount #internal plot counter
+    string special_plot_internal_filename=sprintf("special_plot_%d",spdef.int_pco) #default filename for writing to file.
+    spdef.int_fnm = special_plot_internal_filename
+    
+	
+    return spdef
+end function
+
+function void special_plot_check_sample_ok(bundle *specs)
+  # set verbose off
+/* Check if the sample changed */
+	if $t1 < specs.int_t1 || $t2 > specs.int_t2 || $nobs > specs.int_nobs
+		string err_str = sprintf("\n** Error: The current sample is not a subsample of the sample used\
+				 \n   to initialise the bundle. Please use 'special_plot_ReInit_sample()'\
+				 \n   to update the sample information, first.\n")
+		funcerr err_str
+	endif
+end function
+
+function void special_plot_ReInit_sample(bundle *specs[null], series *obsdata[null])
+  # set verbose off
+	if !exists(specs) || !exists(obsdata)
+		printf "\n~~ Usage: special_plot_ReInit_sample(&specs, &obsdata) \
+			    \n   where specs is the bundle special_plot bundle and \
+				\n   obsdata is a series 'obsdata = obs' "
+		return
+	endif  
+	list obsls = obsdata #a list that later on holds the obsdate series and a single timeseries
+	specs.int_obsls = obsls #spdef.int_obsls[1] refers to the mandatory obsdate series
+	#Save some information on current sample, to allow an error msg if the sample is enlarged later, making a reinitialisation necessary.
+	specs.int_t1 = $t1
+	specs.int_t2 = $t2
+	specs.int_nobs = $nobs
+
+	strings Date_or_obskey = null #holds information for the rows of the data (time, obsnumber/key, ...)
+    specs.int_DSM = Date_or_obskey 
+
+    if $datatype == 0
+        string special_plot_internal_obstype = "no data"
+        funcerr "** No data is loaded.\n"
+    elif $datatype == 1
+        string special_plot_internal_obstype = "cross-section"
+		special_plot_update_obskeys(&obsdata,"",&specs) #default: Use obs number as key
+        printf "\n~~ Attention: Default obskeys initialised (key=obsid).\
+				\n   (re)initialise the obskey, calling special_plot_update_obskeys(), to change." 
+    elif $datatype == 3
+        string special_plot_internal_obstype = "panel"
+        funcerr "** Panel data is currently not supported\n"
+    elif $datatype == 2
+        string special_plot_internal_obstype = "time-series"
+        special_plot_update_obstimes(&specs) #initialise
+    	
+    endif
+
+	printf "\n~~ Attention: Updated the sample to %d objects with id-keys from %d to %d",specs.int_nobs,specs.int_t1,specs.int_t2
+	return
+end function
+
+function void special_plot_update_obskeys(series *obskey[null], string prefix[null], bundle * specs[null])
+  # set verbose off
+	if !exists(obskey) || !exists(prefix) || !exists(specs)
+		printf "\n~~ 'special_plot_update_obskeys(series *obskey[null], string prefix[null], bundle * specs[null])'  \
+				\n Please provide a timeseries for the obskey, a string prefix (\"\" is possible) and \
+				\n the pointer to the bundle you whish to modify (with & symbol, i.e. &BUNDLE)" 
+		return
+	endif  
+	/* In case we have a cross-section type of data, we need to initialise the observations keys */
+    strings temp = array($nobs) #create strings-array 
+    loop i=1..$nobs -q		#... from obskey
+        temp[i] = sprintf("%s_%d",prefix,obskey[i])
+    endloop	
+    specs.int_DSM = temp
+end function
+
+function void special_plot_update_obstimes(bundle * specs, scalar dateform[0:4:1])
+  # set verbose off
+/* Thx Artur! 
+   Creates an obsdate timeseries (only once) if it does not yet exist and applicable, which will be used later on.
+   Also Codifies a string vector for row-names, that is changed if necessary (smpl size reduced, e.g.) 
+    */
+    catch obsdate = $obsdate
+    if $error == 0
+        special_plot_dateformat = dateform
+        specs.dft = special_plot_dateformat
+        special_plot_internal_obstype = "dated" #if type is dated, create a global vector holding string names for each obs-date
+        strings S = special_plot_s2a(obsdate)
+        strings Date = special_plot_asdate(S,specs.dft) 
+    else
+        special_plot_internal_obstype = "undated"
+        strings Date = array($nobs) #obs #undated, continuous
+        loop for i=$t1..$t2 -q
+            Date[i] = sprintf("%d",i)
+        endloop
+    endif								
+
+    specs.int_dmy = special_plot_internal_obstype #still, I should differ between the different kinds of peridicity in the data? Or doesn't it matter?	
+    specs.int_DSM = Date #Add the according matrix to the bundle, selection specifics see plot_data_helpers.inp where it is used.
+
+end function
+
+function void special_plot_modify_defaults_h()
+	printf "\n~~ Print some information on defaults and potential modifications..."
+	return
+end function
+
+function void special_plot_modify_defaults(bundle * spdef[null], string variable[null], string value[null])
+/* As most of these options are "passed" to gnuplot, we can directly 
+   keep them as strings. Otherwise, we may convert them ...
+    */
+	if !exists(spdef) || !exists(variable) || !exists(value)
+		special_plot_modify_defaults_h()
+		return
+	endif
+    if  variable == "title"
+        spdef.ttl = value
+		printf "\n ~~ Setting title to: %s\n",value
+
+    elif  variable == "outputtype"
+        spdef.oty = value
+		printf "\n ~~ Setting output type to: %s\n",value
+
+    elif  variable == "detail"
+        spdef.dtl = value
+		printf "\n ~~ Setting output type to: %s\n",value
+    
+	elif variable == "internal_filename" #not recomended! Provide the filename directly with the plot argument.
+        spdef.int_fnm = value
+		#printf "\n# ~~ Setting (internal) filename to: %s\n",value
+
+	elif variable == "dateformat"
+		printf "\n ~~ Setting date format to: %s  (0=Y/M/D, 1=y/M/D, 2=Y/M, 3=y/M, 4=M/D, 5=integers)\n",value	
+		special_plot_update_obstimes(&spdef,value) #update the row-key!
+
+    else
+        funcerr "\n# Unknown command (yet?) \n"
+    endif		
+end function
+
+function void special_plot_add_mx_h()
+    printf "\n~~ 'special_plot_add_mx(&spbndl, &input_matrix)' help..\
+			\n   Provide the bundle with the specs and a matrix with the data.\
+			\n   The matrix columnames are the series plot names (if applicable)\
+			\n   The matrix rownames are the keys (if applicable)\
+            \n"
+    return
+end function
+
+function void special_plot_add_mx(bundle *specs[null], matrix *mx[null])
+if !exists(specs)
+        special_plot_add_mx_h()
+        return
+    elif !exists(mx)
+        funcerr "** Error: You need to provide a matrix (by pointer, i.e. with &)"
+	
+	#Standard Behaviour Below
+	else
+		if inbundle(specs.input,mx)==3
+			printf "\n~~ Attention: The prior matrix in %s is overwritten",argname(specs)
+		endif
+		specs.input.mx = mx
+		printf "\n~~ Added the matrix %s to the bundle %s",argname(mx),argname(specs)
+		return
+	endif
+
+end function
+
+function void special_plot_add_mc_h()
+    printf "\n~~ 'special_plot_add_mc(&spbndl, &input_matrices)' help..\
+			\n   Provide the bundle with the specs and a matrices with the data.\
+			\n   The matrices matrix' columnames are the series plot names (if applicable)\
+			\n   The matrices matrix' rownames are the keys (if applicable)\
+            \n"
+    return
+end function
+
+function void special_plot_add_mc(bundle *specs[null], matrices *mc[null])
+if !exists(specs)
+        special_plot_add_mc_h()
+        return
+    elif !exists(mc)
+        funcerr "** Error: You need to provide a matrix (by pointer, i.e. with &)"
+	
+	#Standard Behaviour Below
+	else
+		if inbundle(specs.input,mc)==6
+			printf "\n~~ Attention: The prior matrices in %s are overwritten",argname(specs)
+		endif
+		specs.input.mc = mc
+		printf "\n~~ Added the matrix %s to the bundle %s",argname(mc),argname(specs)
+		return
+	endif
+
+end function
+
+function void special_plot_add_ls_h()
+    printf "\n~~ 'special_plot_add_ls(bundle *specs[null], list ls[null], strings *altKey[null])' help..\
+			\n   Provide the bundle with the specs, a timeseries and optionally an alternative key (name) for this series.\
+			\n   Then you may move on to plot the series.\
+			\n   Note: The series is actually stored by reference, i.e. it will react to sampling (desired!). \
+            \n"
+    return
+end function
+
+function void special_plot_add_ls(bundle *specs[null], list ls[null], strings *altKeys[null] "Alternative title, if not provided, the series name is used")
+   #set verbose on
+    /* Timeseries are added by reference. This way, subsampling and other operations outside the bundle
+		will be directly reflected in the timeseries. */
+    if !exists(specs)
+        special_plot_add_ls_h()
+        return
+    elif !exists(ls)
+        funcerr "** Error: You need to provide a timeseries (by pointer, i.e. with &)"
+
+	#Standard Behaviour Below
+		#You may provide an alternative key/title for the time-series
+    elif exists(altKeys)
+        strings new_varnames = altKeys
+    else
+        strings new_varnames = array(nelem(ls))
+		loop i=1..nelem(ls) -q
+			new_varnames[i] = varname(ls[i]) #untested
+		endloop
+    endif
+    if inbundle(specs.input,ls)==7 #the timeseries list exists ergo the name exists. 
+        printf "\n~~ Attention. The added list '%s..%s' replaced the existing list '%s..%s' in the inputbundle '%s'",new_varnames[1],new_varnames[nelem(new_varnames)],specs.input.lsn[1],specs.input.lsn[nelem(specs.input.lsn)],argname(specs)   
+	endif	
+    specs.input.ls = ls #is a bit obscure, but actually specs.input.ts is a list which will now have a single element, *ts.
+    specs.input.lsn = new_varnames
+	printf "\n~~ Added list '%s..%s' to the inputbundle '%s'\n",specs.input.lsn[1],specs.input.lsn[nelem(specs.input.lsn)],argname(specs)   
+    return
+end function
+
+function void special_plot_add_ts_h()
+    printf "\n~~ 'special_plot_add_ts(bundle *specs[null], series *ts[null], string altKey[null])' help..\
+			\n   Provide the bundle with the specs, a timeseries and optionally an alternative key (name) for this series.\
+			\n   Then you may move on to plot the series.\
+			\n   Note: The series is actually stored by reference, i.e. it will react to sampling (desired!). \
+            \n"
+    return
+end function
+
+function void special_plot_add_ts(bundle *specs[null], series *ts[null], string altKey[null] "Alternative title, if not provided, the series name is used")
+  # set verbose off
+    /* Timeseries are added by reference. This way, subsampling and other operations outside the bundle
+		will be directly reflected in the timeseries. */
+    if !exists(specs)
+        special_plot_add_ts_h()
+        return
+    elif !exists(ts)
+        funcerr "** Error: You need to provide a timeseries (by pointer, i.e. with &)"
+
+	#Standard Behaviour Below
+		#You may provide an alternative key/title for the time-series
+    elif exists(altKey)
+        string new_varname = altKey
+    else
+        string new_varname = argname(ts)
+    endif
+    if inbundle(specs.input,ts)==7 #the timeseries list exists ergo the name exists. 
+        printf "\n~~ Attention. The added series '%s' replaced the existing series '%s' in the inputbundle '%s'",new_varname,specs.input.tsn,argname(specs)
+	else
+		list templ
+		specs.input.ts = templ
+		#printf "\n~~%d~~\n",inbundle(specs.input,ts)    
+	endif
+	list templ = ts	
+    specs.input.ts = templ #is a bit obscure, but actually specs.input.ts is a list which will now have a single element, *ts.
+	#printf "\n~~%d~~\n",inbundle(specs.input,ts)    
+    specs.input.tsn = new_varname
+	printf "\n~~ Added series '%s' to the inputbundle '%s'\n",specs.input.tsn,argname(specs)
+    return
+	
+
+end function
+
+#special_plot()
+#special_plot("blub")
+#special_plot("ts_detailed")
+
+	

@@ -1,0 +1,71 @@
+printf "\n~~ special_plot package: Loaded plot \"mser\"."
+function void special_plot_ts_mser_h()
+	printf "\n~~Function 'special_plot_mser(&SpecialPlotBundle)' \
+			\n  called via 'special_plot(\"ts_detailed\",&SpecialPlotBundle)' \
+			\n  This is some information... \n \
+			--------\n"
+	return
+end function
+
+
+function void special_plot_ts_mser(bundle *specs)
+
+	if !exists(specs)
+ 		special_plot_ts_mser_h()
+ 		return
+ 	endif
+
+	if !inbundle(specs,input)==5
+		funcerr "**Error in 'special_plot_ts_detailed()': There should be a bundle 'input' within the bundle 'specs'!"
+	elif !inbundle(specs.input,ts)==7
+		funcerr "**Error in 'special_plot_ts_detailed()': There should be a list element 'ts' in bundle 'input' within the bundle 'specs'!"
+    endif
+
+	#Calculate MSER and other statistics
+	set warnings off
+	matrix MSER = special_plot_stats_MSER5(specs.input.ts,"","time")
+
+	#calculate tic distance, direct manipulation.
+	# to do...	spdef.xtc =# 	
+	
+
+	string temp_data = special_plot_direct_mx_gp_data(&MSER)
+
+    #start with plotting
+    tmpfile = sprintf("%s/tmp_out.gp", $dotdir)
+    outfile @tmpfile --write --quiet #open temp outfile
+    
+
+	#Datablock
+    printf "$DATA << EOD\n"
+      string line
+      loop while getline(temp_data, line) --quiet
+          printf "%s\n", line
+      endloop
+#	printf @temp_data
+    printf "EOD\n"
+    temp_data="$DATA"
+
+	special_plot_setup_main(&specs)
+
+	printf "\nset ylabel \"data\"\n"
+	printf "\nset y2label \"MSER-5\"\n"
+
+    scalar bs = 10 #left and right, using the bitmask format
+    printf "set border %d \n",bs #only left side box-line
+	printf "set y2tics auto\n"
+
+	printf " plot '@temp_data'  index 0 using 3:4 axes x1y2 w l lc rgb %s,\\\n",colour_5(1)
+	printf " '' 				index 0 using 3:5 w l lc rgb %s,\\\n",colour_5(2)
+	printf " '' 				index 0 using 3:6 w l lc rgb %s\n",colour_5(3)
+
+    outfile --close 
+    set warnings on
+
+	string fname = "display"
+	if specs.int_fnm != "display"
+		string fname = "ts_mser_" ~ specs.int_fnm ~ "." ~ specs.oty
+	endif
+    gnuplot --input=@tmpfile --output=@fname
+
+end function

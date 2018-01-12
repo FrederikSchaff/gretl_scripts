@@ -1,0 +1,30 @@
+/*For some information on data visualisation (and pitfalls) see
+   Jones, A. M. (2017). Data Visualization and Health Econometrics. 
+   Foundations and Trends® in Econometrics, 9(1), 1–78. 
+   https://doi.org/10.1561/0800000033 
+
+   and 
+
+   Schwabish, J. A. (2014). An Economist's Guide to Visualizing Data. 
+   The Journal of Economic Perspectives, 28(1), 209–233. 
+   https://doi.org/10.1257/jep.28.1.209 
+*/
+
+#set dirs
+
+#function void special_plot_include_all(string special_plot_dir "Directory with the special_plot.inp file and subs. folder structure")
+    set verbose off
+    #load the function package files
+	string special_plot_dir = $workdir
+    include "@special_plot_dir/sp_h/sp_h_helpers.inp" --force
+    include "@special_plot_dir/sp_h/sp_h_stats.inp" --force
+    include "@special_plot_dir/sp_h/sp_h_colours.inp" --force
+    include "@special_plot_dir/sp_h/sp_h_data_helpers.inp" --force
+    include "@special_plot_dir/sp_h/sp_h_wrapper.inp" --force
+
+    /* Plots */
+    include "@special_plot_dir/plots/sp_plot_ts_detailed.inp" --force
+    include "@special_plot_dir/plots/sp_plot_ts_mser.inp" --force
+
+    printf "\n~~ LOADED the SPECIAL_PLOT package. Use \"special_plot()\" for more information ~~\n"
+#end function

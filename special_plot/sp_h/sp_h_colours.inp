@@ -2,6 +2,7 @@
 #for colour names see http://chir.ag/projects/name-that-color/
 
 function string colours_gray_shade(scalar c[1:3] "choose a light gray from 1 to 3", scalar a[0:3:0] "choose alpha level")
+  # set verbose off
 	string alpha="'0x"
 	if a==1
 		temp = "'0x88"
@@ -31,6 +32,7 @@ end function
 
 
 function string colour_5(scalar c[1:5] "choose a colour from 1 to 5")
+  # set verbose off
     #provides a string with the rgb colour name for gnuplot
     #using tableau colours, see https://www.tableau.com/about/blog/2016/7/colors-upgrade-tableau-10-56782
     #there is also a 20 option.
@@ -48,6 +50,7 @@ function string colour_5(scalar c[1:5] "choose a colour from 1 to 5")
 end function
 
 function string colour_special(scalar c[1:3] "choose a colour from 1 to 2", scalar s[1:2] "choose a spec from 1 to 2")
+  # set verbose off
     #provides a string with the rgb colour name for gnuplot
     #using slightly differentiated colours (3 * 2)
     if c==1
@@ -72,6 +75,7 @@ function string colour_special(scalar c[1:3] "choose a colour from 1 to 2", scal
 end function
                                     
 function string colour_10(scalar c[1:5] "choose a colour from 1 to 10")
+  # set verbose off
     #provides a string with the rgb colour name for gnuplot
     #using nice colours (first three also colourblind safe)
     if c==1

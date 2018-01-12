@@ -1,0 +1,94 @@
+/* */
+
+function scalar special_plot_floor2(scalar input)
+    return floor(input*100)/100
+end function
+
+function scalar special_plot_ceil2(scalar input)
+    return ceil(input*100)/100
+end function
+
+function scalar special_plot_floor1(scalar input)
+    return floor(input*10)/10
+end function
+
+function scalar special_plot_ceil1(scalar input)
+    return ceil(input*10)/10
+end function
+
+
+function matrix special_plot_stats_MSER5 (list ts[null], string prefix[null], string x_label[null],series *tss[null])
+/* Standard usage is with a list from special_plot bundle. But one can also directly use a series instead */
+if nelem(ts)==0
+	if exists(tss)
+		list ts = tss
+	else
+		funcerr "** Error: If you don't provide a list (with at least one member), you should provide a series.\n"
+	endif
+endif
+	
+  # set verbose off
+/* for series ts, calculate the batch_5 statistic, 
+   the MSER-5 and the truncated (batch 5) mean 
+   (basis for MSER5) 
+    */
+#    matrices mc = null
+#    matrix temp = {ts} #should be unnecessary
+    scalar batch=0
+    scalar count=0			
+    scalar len = $nobs
+	scalar n = int((len+4)/5)
+    matrix MSER5 = zeros(n,4) #for 5 batches. the first point of the batch refers to the i*5 in the original time series. The x-key is the time, the y-key the mser-5.
+#    matrix batch5 = MSER5
+#    matrix truncated_mean = MSER5		
+#    strings MSER5names = array(2)
+#    strings batch5names = array(2)
+#    strings truncated_meannames = array(2)
+	strings names = array(4)
+    names[1] = " " #none or obskey important: ADD SPACE
+	if exists(x_label)
+		names[1]=x_label
+	endif		
+	if !exists(prefix)
+		string prefix = strsub(varname(ts[1]),"_","\_") ~ ": "
+	endif
+	names[2] = prefix ~ "MSER-5"
+    names[3] = prefix ~ "batch-5 mean"
+    names[4] = prefix ~ "truncated mean"
+    colnames(MSER5, names)
+# 	eval prefix
+# 	print MSER5
+#   eval names
+    #Create batch and mser 5 data.
+    scalar indx = n
+    scalar running_agg = 0
+    #	scalar batch_idx = 1 #batch number from back
+    loop i=0..len-1	 -q		
+        batch += ts[1][len-i]  #for the current batch, sum up the data
+        count += 1 #increate the length of the batch
+        if count==5 || i==len-1 #at end
+            MSER5[indx,1] = len-i + int(count/2) #index the batch
+            MSER5[indx,3] = batch/count          #batch mean.			
+            running_agg += MSER5[indx,3]		#running agg
+            MSER5[indx,4] = running_agg/(n-indx+1)	#runnning avg	
+			#CHECK
+# 			if MSER5[indx,2] != 0
+# 				funcerr "** Error: Check!
+# 			endif
+			#CHECK-END	
+            loop b=indx..n -q #for each batch in the truncated series, calc (x-x_mean)^2
+                MSER5[indx,2] +=( MSER5[b,3]-MSER5[indx,4] )*( MSER5[b,3]-MSER5[indx,4] )
+            endloop
+            MSER5[indx,2] /= (n-indx+1)*(n-indx+1) #and then normalise the result
+            #reset
+            batch = 0
+            count = 0
+			#move backward one batch
+            indx -= 1 	
+        endif
+    endloop
+    set warnings off
+    MSER5[n,2]=NA #reset last value, which is an artifact "0"
+	set warnings on
+    return MSER5
+end function
