@@ -16,19 +16,23 @@ function void special_plot_ts_mser(bundle *specs)
  	endif
 
 	if !inbundle(specs,input)==5
-		funcerr "**Error in 'special_plot_ts_detailed()': There should be a bundle 'input' within the bundle 'specs'!"
+		funcerr "**Error in 'special_plot_ts_mser()': There should be a bundle 'input' within the bundle 'specs'!"
 	elif !inbundle(specs.input,ts)==7
-		funcerr "**Error in 'special_plot_ts_detailed()': There should be a list element 'ts' in bundle 'input' within the bundle 'specs'!"
+		funcerr "**Error in 'special_plot_ts_mser()': There should be a list element 'ts' in bundle 'input' within the bundle 'specs'!"
     endif
 
 	#Calculate MSER and other statistics
 	set warnings off
-	matrix MSER = special_plot_stats_MSER5(specs.input.ts,"","time")
+# set debug 2
+# 	string ser = sprintf("%s",argname(&specs.input.ts[1]))
+# 	matrix MSER = special_plot_stats_MSER5(&@ser,"","time")
+# set debug 0
+	matrix MSER = special_plot_stats_MSER5(null,"","time",&specs)
 
+#	matrix MSER = mnormal(100,6)
 	#calculate tic distance, direct manipulation.
 	# to do...	spdef.xtc =# 	
 	
-
 	string temp_data = special_plot_direct_mx_gp_data(&MSER)
 
     #start with plotting

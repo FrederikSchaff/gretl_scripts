@@ -1,5 +1,6 @@
 /* This is an example file for the package ... generating 2 of each type of graph */
 nulldata 500
+set debug 0
 /* Please adjust the specialPlotDir */
 	string specialPlotDir = "C:/Users/Frederik/Documents/gretl/Gretl_scripts/special_plot" 
 
@@ -37,23 +38,23 @@ spbndl.ylo = y_min
 spbndl.yhi = y_max
 
 
-
+printf "\n!!!!! First loop\n"
 loop for item=1..items -q 
 	string ts=sprintf("%s",varname(mylist[item]))
+	printf "\n'%s'\n",ts
 	special_plot_add_ts(&spbndl,&@ts,"")
 	string title = ts
 	#string title = strsub(ts,"_"," ")
 	special_plot_modify_defaults(&spbndl,"title",title)
 	special_plot("ts_detailed",&spbndl)		
-	special_plot("ts_mser",&spbndl)	 
+	special_plot("ts_mser",&spbndl)	 #spoils the things!
 endloop
 
-#subsample, still the plot works --- BUT HERE COMES THE ERROR
-
-smpl 200 300
-
+smpl 200 500
+printf "\n!!!!! Second loop\n"
 loop for item=1..items -q 
 	string ts=sprintf("%s",varname(mylist[item]))
+	printf "\n'%s'\n",ts
 	special_plot_add_ts(&spbndl,&@ts,"")
 	string title = ts
 	#string title = strsub(ts,"_"," ")

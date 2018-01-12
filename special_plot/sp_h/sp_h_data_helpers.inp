@@ -31,7 +31,7 @@ function string special_plot_mx_ts_gp_data (bundle * specs[null], string InputTy
 		if intype != 7
 			funcerr "** Error: In 'special_plot_mx_ts_gp_data ()', input missing/wrong: Should be list containing the timeseries"
 		else
-			matrix M = {specs.input.ts[1]}
+			matrix M = {specs.int_obsls[1],specs.input.ts[1]} #obsnumber, data
 			if inbundle(specs,int_DSM)==6 #a name matrix exists (strings == array)
     			if $nobs == nelem(specs.int_DSM) #complete sample
     				rownames(M,specs.int_DSM)
@@ -49,7 +49,10 @@ function string special_plot_mx_ts_gp_data (bundle * specs[null], string InputTy
 				printf "\n~~Attention: No obskeys provided! Please update via special_plot_update_obskeys(..) if wished otherwise \n" 
 			endif
 			if inbundle(specs.input,tsn)==4
-				colnames(M,specs.input.tsn) #The information for the columnname == variablename/key exists
+				strings cns = array(2)
+				cns[1] = "Obs/Time/x"
+				cns[2] = specs.input.tsn
+				colnames(M,cns) #The information for the columnname == variablename/key exists
 			endif			
 		endif					
 	elif InputType=="mx"
@@ -87,7 +90,7 @@ function string special_plot_direct_mx_gp_data(matrix *M)
 				if c==-1
                     printf "\"x-Label\" " #the first row has no own name                    
 				elif c==0
-					printf "\"Obs/time/x\" " #Observation number or time
+					printf "\"row-numb\" " #row-number of matrix
                 else                        
                     printf "\"%s\" ", colname(M, c) #print columnhead (if exists, else it is generic?)
                 endif                    
