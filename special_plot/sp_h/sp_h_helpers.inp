@@ -42,8 +42,8 @@ function list special_plot_NonConstList(list Input)
         if var(Input.$i) > 1e-20  # some arbitrary small number
             outlist += Input.$i
         else 
-            series nonConst_$i = Input.$i + uniform() * 1e-10
-            outlist += nonConst_$i
+            series nc_$i = Input.$i + uniform() * 1e-10
+            outlist += nc_$i
         endif
     endloop
     return outlist
