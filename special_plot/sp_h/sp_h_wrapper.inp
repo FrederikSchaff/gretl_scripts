@@ -43,7 +43,7 @@ function void special_plot_h()
 \n				Example: 'setobs 1 1 --time-series' or 'setobs 1 1 --cross-section'\
 \n	.\
 \n 	1)	Initialise the special plots bundle: \
-\n 	1-a)	series obsdate = obs	//Create a series with unique obs keys for the current sample\
+\n 	1-a)	series obsdata = obs	//Create a series with unique obs keys for the current sample\
 \n 	1-b)	bundle spbndl = special_plot_get_defaults(&obsdata)   //Create the special-plot bundle\
 \n 	[Optional, timeseries] Set the date format via 'special_plot_update_obstimes(...)'\
 \n	[Optional, cross-section] Set the observation keys via 'special_plot_update_obskeys(...)'\
@@ -52,10 +52,11 @@ function void special_plot_h()
 \n	2) 	Add the data you want to plot. Note: The plots deal with one type of data, \
 \n			specified by the prescript. \"ts\" e.g. is for timeseries.\
 \n	[Optional] Get information on the data needed for the plot, for example: 'special_plot(\"ts_detailed\")'\
-\n	2-a.. [Timeseries] special_plot_add_ts(...) \
-\n	2-a.. [Single Matrix] special_plot_add_ts(...) \
-\n	2-a.. [Matrices] special_plot_add_mc(...) \
-\n	2-a.. [List] special_plot_add_ls(...) \
+\n  Note: You need to always supply the spbndl containg the information for the plots.\
+\n	2-a.. [Timeseries] special_plot_add_ts(&spbndl,&MYSERIES) \
+\n	2-a.. [List] special_plot_add_ls(&spbndl,&MYLIST) \
+\n	2-a.. [Single Matrix] special_plot_add_mx(&spbndl,&MYMATRIX) \
+\n	2-a.. [Matrices] special_plot_add_mc(&spbndl,&MYMATRICES) \
 \n	.\
 \n	3)	Plot your data.\
 \n	.\
