@@ -14,9 +14,11 @@
 
 #function void special_plot_include_all(string special_plot_dir "Directory with the special_plot.inp file and subs. folder structure")
     set verbose off
-    #load the function package files
+    #load the function package files    
+
 	string special_plot_dir = $workdir
-    include "@special_plot_dir/sp_h/sp_h_helpers.inp" --force
+    catch include "@special_plot_dir/sp_h/sp_h_helpers.inp" --force
+    if $error == 0 
     include "@special_plot_dir/sp_h/sp_h_stats.inp" --force
     include "@special_plot_dir/sp_h/sp_h_colours.inp" --force
     include "@special_plot_dir/sp_h/sp_h_data_helpers.inp" --force
@@ -27,4 +29,10 @@
     include "@special_plot_dir/plots/sp_plot_ts_mser.inp" --force
 
     printf "\n~~ LOADED the SPECIAL_PLOT package. Use \"special_plot()\" for more information ~~\n"
+else
+    printf "\nTo load the special plot package, please set the workingdir via set to the directory containing this 'special_plot.inp' file" 
+    printf "\n To do so, use the command 'set workdir \"DIR\"' " 
+
+endif
+
 #end function
